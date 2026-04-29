@@ -134,7 +134,7 @@ def handle_confirmed_failure(
 
     ensure_action_paths()
     event_time = timestamp or datetime.now().astimezone()
-    action = _run_simulated_action(simulated_action)
+    action = _action_name(simulated_action)
     screenshot_path = save_failure_screenshot(frame, event_time, label)
 
     event = FailureEvent(
@@ -147,15 +147,25 @@ def handle_confirmed_failure(
     )
     append_event_log(event)
     alert_failure(source, label, confidence)
+    _run_simulated_action(action)
 
     return event
+
+
+def _action_name(action: str) -> str:
+    """Return the supported simulated action name."""
+
+    normalized_action = action.lower().strip()
+    if normalized_action == "pause":
+        return "pause"
+
+    return "stop"
 
 
 def _run_simulated_action(action: str) -> str:
     """Run the configured simulated printer action."""
 
-    normalized_action = action.lower().strip()
-    if normalized_action == "pause":
+    if _action_name(action) == "pause":
         return simulate_pause()
 
     return simulate_stop()
