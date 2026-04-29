@@ -1,14 +1,11 @@
 """Failure response actions for PrintSentinel."""
 
 import csv
-import re
 import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-
-import cv2
 
 from config import (
     ALERT_BEEP_ENABLED,
@@ -17,6 +14,7 @@ from config import (
     LOGS_DIR,
     SIMULATED_ACTION,
 )
+from utils import now_local, safe_filename_part, safe_timestamp
 
 CSV_COLUMNS = (
     "timestamp",
@@ -56,8 +54,10 @@ def save_failure_screenshot(
     """Save a failure screenshot and return the written path."""
 
     captures_dir.mkdir(parents=True, exist_ok=True)
-    filename = f"failure_{_safe_timestamp(timestamp)}_{_safe_filename_part(label)}.jpg"
+    filename = f"failure_{safe_timestamp(timestamp)}_{safe_filename_part(label)}.jpg"
     screenshot_path = captures_dir / filename
+
+    import cv2
 
     if not cv2.imwrite(str(screenshot_path), frame):
         raise RuntimeError(f"Could not save failure screenshot: {screenshot_path}")
@@ -76,16 +76,20 @@ def append_event_log(event: FailureEvent, csv_path: Path = EVENTS_CSV_PATH) -> N
         if should_write_header:
             writer.writeheader()
 
-        writer.writerow(
-            {
-                "timestamp": event.timestamp,
-                "source": event.source,
-                "label": event.label,
-                "confidence": f"{event.confidence:.4f}",
-                "action": event.action,
-                "screenshot_path": str(event.screenshot_path),
-            }
-        )
+        writer.writerow(build_event_row(event))
+
+
+def build_event_row(event: FailureEvent) -> dict[str, str]:
+    """Build a CSV-safe row for a confirmed failure event."""
+
+    return {
+        "timestamp": event.timestamp,
+        "source": event.source,
+        "label": event.label,
+        "confidence": f"{event.confidence:.4f}",
+        "action": event.action,
+        "screenshot_path": str(event.screenshot_path),
+    }
 
 
 def alert_failure(
@@ -133,8 +137,8 @@ def handle_confirmed_failure(
     """Run all Phase 2 responses for a confirmed failure."""
 
     ensure_action_paths()
-    event_time = timestamp or datetime.now().astimezone()
-    action = _action_name(simulated_action)
+    event_time = timestamp or now_local()
+    action = get_simulated_action_name(simulated_action)
     screenshot_path = save_failure_screenshot(frame, event_time, label)
 
     event = FailureEvent(
@@ -152,7 +156,7 @@ def handle_confirmed_failure(
     return event
 
 
-def _action_name(action: str) -> str:
+def get_simulated_action_name(action: str) -> str:
     """Return the supported simulated action name."""
 
     normalized_action = action.lower().strip()
@@ -165,20 +169,7 @@ def _action_name(action: str) -> str:
 def _run_simulated_action(action: str) -> str:
     """Run the configured simulated printer action."""
 
-    if _action_name(action) == "pause":
+    if get_simulated_action_name(action) == "pause":
         return simulate_pause()
 
     return simulate_stop()
-
-
-def _safe_timestamp(timestamp: datetime) -> str:
-    """Format a timestamp for use in a filename."""
-
-    return timestamp.strftime("%Y%m%d_%H%M%S_%f")
-
-
-def _safe_filename_part(value: str) -> str:
-    """Return a conservative filename fragment."""
-
-    safe_value = re.sub(r"[^A-Za-z0-9_-]+", "_", value.strip().lower())
-    return safe_value.strip("_") or "unknown"
