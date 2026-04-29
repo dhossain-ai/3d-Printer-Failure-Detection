@@ -103,3 +103,47 @@ def test_trigger_printer_response_warns_without_raising(capsys) -> None:
     assert not result.success
     assert "health failed" in captured.err
     assert "stop failed" in captured.err
+
+
+def test_handle_confirmed_failure_runs_all_response_steps(monkeypatch, tmp_path: Path) -> None:
+    """Confirmed failure handling should save, log, alert, and control printer."""
+
+    calls: list[str] = []
+
+    def fake_save(frame, timestamp, label):
+        calls.append("screenshot")
+        return tmp_path / "failure.jpg"
+
+    def fake_log(event):
+        calls.append("csv")
+
+    def fake_alert(source, label, confidence):
+        calls.append("alert")
+
+    def fake_printer(action):
+        calls.append("printer")
+        return PrinterCommandResult(
+            action=action,
+            success=True,
+            message="ok",
+        )
+
+    monkeypatch.setattr("actions.save_failure_screenshot", fake_save)
+    monkeypatch.setattr("actions.append_event_log", fake_log)
+    monkeypatch.setattr("actions.alert_failure", fake_alert)
+    monkeypatch.setattr("actions.trigger_printer_response", fake_printer)
+
+    from actions import handle_confirmed_failure
+
+    event = handle_confirmed_failure(
+        frame=object(),
+        source="Sample video",
+        label="spaghetti",
+        confidence=0.91,
+        printer_action="pause",
+    )
+
+    assert calls == ["screenshot", "csv", "alert", "printer"]
+    assert event.action == "pause"
+    assert event.action_success is True
+    assert event.action_message == "ok"
