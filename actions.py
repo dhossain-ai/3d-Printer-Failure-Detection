@@ -12,7 +12,15 @@ from config import (
     CAPTURES_DIR,
     EVENTS_CSV_PATH,
     LOGS_DIR,
-    SIMULATED_ACTION,
+    PRINTER_ACTION,
+)
+from printer_controller import (
+    PrinterCommandResult,
+    PrinterController,
+    SimulatedPrinterController,
+    create_printer_controller,
+    execute_printer_action,
+    normalize_printer_action,
 )
 from utils import now_local, safe_filename_part, safe_timestamp
 
@@ -115,15 +123,13 @@ def alert_failure(
 def simulate_stop() -> str:
     """Simulate a printer stop action and return the action name."""
 
-    print("SIMULATED PRINTER ACTION: STOP requested.", file=sys.stderr)
-    return "stop"
+    return SimulatedPrinterController().stop_print().action
 
 
 def simulate_pause() -> str:
     """Simulate a printer pause action and return the action name."""
 
-    print("SIMULATED PRINTER ACTION: PAUSE requested.", file=sys.stderr)
-    return "pause"
+    return SimulatedPrinterController().pause_print().action
 
 
 def handle_confirmed_failure(
@@ -132,13 +138,13 @@ def handle_confirmed_failure(
     label: str,
     confidence: float,
     timestamp: datetime | None = None,
-    simulated_action: str = SIMULATED_ACTION,
+    printer_action: str = PRINTER_ACTION,
 ) -> FailureEvent:
-    """Run all Phase 2 responses for a confirmed failure."""
+    """Run all configured responses for a confirmed failure."""
 
     ensure_action_paths()
     event_time = timestamp or now_local()
-    action = get_simulated_action_name(simulated_action)
+    action = normalize_printer_action(printer_action)
     screenshot_path = save_failure_screenshot(frame, event_time, label)
 
     event = FailureEvent(
@@ -151,7 +157,7 @@ def handle_confirmed_failure(
     )
     append_event_log(event)
     alert_failure(source, label, confidence)
-    _run_simulated_action(action)
+    trigger_printer_response(action)
 
     return event
 
@@ -159,17 +165,28 @@ def handle_confirmed_failure(
 def get_simulated_action_name(action: str) -> str:
     """Return the supported simulated action name."""
 
-    normalized_action = action.lower().strip()
-    if normalized_action == "pause":
-        return "pause"
+    return normalize_printer_action(action)
 
-    return "stop"
+
+def trigger_printer_response(
+    action: str = PRINTER_ACTION,
+    controller: PrinterController | None = None,
+) -> PrinterCommandResult:
+    """Run the selected printer response without crashing monitoring."""
+
+    active_controller = controller or create_printer_controller()
+    health_result = active_controller.healthcheck()
+    if not health_result.success:
+        print(f"PRINTSENTINEL WARNING: {health_result.message}", file=sys.stderr)
+
+    action_result = execute_printer_action(active_controller, action)
+    if not action_result.success:
+        print(f"PRINTSENTINEL WARNING: {action_result.message}", file=sys.stderr)
+
+    return action_result
 
 
 def _run_simulated_action(action: str) -> str:
     """Run the configured simulated printer action."""
 
-    if get_simulated_action_name(action) == "pause":
-        return simulate_pause()
-
-    return simulate_stop()
+    return execute_printer_action(SimulatedPrinterController(), action).action
