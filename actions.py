@@ -44,6 +44,8 @@ class FailureEvent:
     confidence: float
     action: str
     screenshot_path: Path
+    action_success: bool | None = None
+    action_message: str | None = None
 
 
 def ensure_action_paths() -> None:
@@ -157,9 +159,18 @@ def handle_confirmed_failure(
     )
     append_event_log(event)
     alert_failure(source, label, confidence)
-    trigger_printer_response(action)
+    action_result = trigger_printer_response(action)
 
-    return event
+    return FailureEvent(
+        timestamp=event.timestamp,
+        source=event.source,
+        label=event.label,
+        confidence=event.confidence,
+        action=event.action,
+        screenshot_path=event.screenshot_path,
+        action_success=action_result.success,
+        action_message=action_result.message,
+    )
 
 
 def get_simulated_action_name(action: str) -> str:

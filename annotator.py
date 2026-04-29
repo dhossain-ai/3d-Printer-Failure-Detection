@@ -35,6 +35,9 @@ class OverlayState:
     label: str | None = None
     confidence: float = 0.0
     cooldown_remaining_seconds: int = 0
+    printer_backend: str = "simulated"
+    printer_action: str = "stop"
+    last_action_result: str | None = None
 
 
 def draw_monitoring_overlay(frame: Any, state: OverlayState) -> Any:
@@ -45,6 +48,8 @@ def draw_monitoring_overlay(frame: Any, state: OverlayState) -> Any:
     status_color = _status_color(state)
     last_detection = _last_detection_text(state)
     cooldown_text = _cooldown_text(state)
+    printer_text = f"Printer: {state.printer_backend}/{state.printer_action}"
+    action_text = _action_result_text(state)
 
     cv2.rectangle(
         frame,
@@ -103,6 +108,20 @@ def draw_monitoring_overlay(frame: Any, state: OverlayState) -> Any:
     )
     _put_text(
         frame,
+        printer_text,
+        (right_x, y),
+        color=COLOR_STATUS_DETAIL,
+    )
+
+    y += OVERLAY_LINE_HEIGHT
+    _put_text(
+        frame,
+        action_text,
+        (left_x, y),
+        color=COLOR_STATUS_DETAIL,
+    )
+    _put_text(
+        frame,
         "Press q to quit",
         (right_x, y),
         color=COLOR_STATUS_DETAIL,
@@ -151,6 +170,15 @@ def _cooldown_text(state: OverlayState) -> str:
         return f"Cooldown: {state.cooldown_remaining_seconds}s"
 
     return "Cooldown: ready"
+
+
+def _action_result_text(state: OverlayState) -> str:
+    """Return compact text for the latest printer action result."""
+
+    if state.last_action_result is None:
+        return "Last action: none"
+
+    return f"Last action: {state.last_action_result}"
 
 
 def _put_text(
