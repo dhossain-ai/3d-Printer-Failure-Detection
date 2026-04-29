@@ -1,6 +1,6 @@
-"""PrintSentinel Phase 1 entry point."""
+"""PrintSentinel entry point."""
 
-from config import CAPTURES_DIR, EVENTS_LOG_PATH, LOGS_DIR
+from config import CAPTURES_DIR, EVENTS_CSV_PATH, LOGS_DIR
 from detector import YoloFailureDetector
 from runner import PrintSentinelRunner
 from ui import choose_source, show_error
@@ -11,7 +11,7 @@ def ensure_project_paths() -> None:
 
     CAPTURES_DIR.mkdir(exist_ok=True)
     LOGS_DIR.mkdir(exist_ok=True)
-    EVENTS_LOG_PATH.touch(exist_ok=True)
+    EVENTS_CSV_PATH.touch(exist_ok=True)
 
 
 def main() -> None:

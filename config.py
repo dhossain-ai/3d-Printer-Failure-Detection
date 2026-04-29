@@ -1,4 +1,4 @@
-"""Application configuration for PrintSentinel Phase 1."""
+"""Application configuration for PrintSentinel."""
 
 from pathlib import Path
 
@@ -8,11 +8,14 @@ MODEL_PATH = BASE_DIR / "models" / "model.pt"
 SAMPLE_VIDEO_PATH = BASE_DIR / "assets" / "demo.mp4"
 CAPTURES_DIR = BASE_DIR / "captures"
 LOGS_DIR = BASE_DIR / "logs"
-EVENTS_LOG_PATH = LOGS_DIR / "events.csv"
+EVENTS_CSV_PATH = LOGS_DIR / "events.csv"
 
 FAILURE_CLASSES = ("spaghetti", "stringing", "zits")
 CONFIDENCE_THRESHOLD = 0.35
 CONSECUTIVE_FAIL_FRAMES = 3
+ALERT_COOLDOWN_SECONDS = 20
+SIMULATED_ACTION = "stop"
+ALERT_BEEP_ENABLED = False
 
 WINDOW_NAME = "PrintSentinel"
 STATUS_MONITORING = "STATUS: MONITORING"
