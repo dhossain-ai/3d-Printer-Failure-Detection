@@ -9,15 +9,19 @@ from ui import choose_source, show_error
 def ensure_project_paths() -> None:
     """Create runtime directories and placeholder log file if they are missing."""
 
-    CAPTURES_DIR.mkdir(exist_ok=True)
-    LOGS_DIR.mkdir(exist_ok=True)
+    CAPTURES_DIR.mkdir(parents=True, exist_ok=True)
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
     EVENTS_CSV_PATH.touch(exist_ok=True)
 
 
 def main() -> None:
     """Launch the PrintSentinel source picker and monitoring loop."""
 
-    ensure_project_paths()
+    try:
+        ensure_project_paths()
+    except OSError as exc:
+        show_error(f"Could not prepare captures/logs folders: {exc}")
+        return
 
     source = choose_source()
     if source is None:

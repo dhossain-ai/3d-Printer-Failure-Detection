@@ -83,6 +83,6 @@ def open_capture(source: VideoSource) -> tuple[cv2.VideoCapture | None, str | No
     capture = cv2.VideoCapture(source.value)
     if not capture.isOpened():
         capture.release()
-        return None, f"Could not open video source: {source.label}"
+        return None, f"Could not open video source '{source.label}' ({source.value})."
 
     return capture, None

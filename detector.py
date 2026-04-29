@@ -4,8 +4,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from ultralytics import YOLO
-
 from config import CONFIDENCE_THRESHOLD, FAILURE_CLASSES, MODEL_PATH
 
 
@@ -31,9 +29,18 @@ class YoloFailureDetector:
         """Load the YOLO model and configure failure filtering."""
 
         if not model_path.exists():
-            raise FileNotFoundError(f"YOLO model not found: {model_path}")
+            raise FileNotFoundError(
+                f"YOLO model not found at {model_path}. "
+                "Place a trained model at models/model.pt and try again."
+            )
 
-        self._model = YOLO(str(model_path))
+        try:
+            from ultralytics import YOLO
+
+            self._model = YOLO(str(model_path))
+        except Exception as exc:
+            raise RuntimeError(f"Could not load YOLO model from {model_path}: {exc}") from exc
+
         self._confidence_threshold = confidence_threshold
         self._failure_classes = tuple(label.lower() for label in failure_classes)
 

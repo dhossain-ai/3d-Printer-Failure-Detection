@@ -96,7 +96,10 @@ def choose_source() -> VideoSource | None:
 def show_error(message: str) -> None:
     """Show a Tkinter error dialog."""
 
-    root = tk.Tk()
-    root.withdraw()
-    messagebox.showerror("PrintSentinel", message)
-    root.destroy()
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        messagebox.showerror("PrintSentinel", message)
+        root.destroy()
+    except tk.TclError:
+        print(f"PrintSentinel error: {message}")
