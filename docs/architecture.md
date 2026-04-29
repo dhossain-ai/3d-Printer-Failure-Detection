@@ -1,0 +1,27 @@
+# PrintSentinel Architecture Notes
+
+PrintSentinel is organized around a small set of focused modules:
+
+- `ui.py` chooses the input source.
+- `sources.py` opens the selected sample video, webcam, or mobile camera URL.
+- `detector.py` wraps YOLO inference and failure-label filtering.
+- `runner.py` coordinates capture, detection, confirmation, cooldown, overlays, and summaries.
+- `annotator.py` draws runtime status overlays.
+- `actions.py` handles confirmed-failure side effects: screenshot, CSV, alert, and printer response.
+- `printer_controller.py` contains safe simulated and generic HTTP printer backends.
+- `session_summary.py` tracks run-level metrics and writes `logs/session_*.json`.
+
+## Demo Asset Checklist
+
+Suggested GitHub showcase assets:
+
+- `docs/images/source-selection.png`
+- `docs/images/monitoring.png`
+- `docs/images/fail-detected.png`
+- `docs/images/session-summary.png`
+
+These files are placeholders for future captured screenshots. They are not required to run the app.
+
+## Safety Model
+
+The default printer backend is simulated. HTTP control is opt-in through environment variables or config values. If HTTP setup is incomplete or a request fails, PrintSentinel prints a warning and continues monitoring instead of crashing.

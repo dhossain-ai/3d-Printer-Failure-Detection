@@ -41,6 +41,14 @@ PrintSentinel is a Python MVP for camera/video-based 3D print failure detection.
 - Controller failures are reported clearly without crashing monitoring
 - Tests for controller selection, HTTP request routing, and failure fallback
 
+### Phase 5: Demo Readiness And Evaluation
+
+- Mocked orchestration tests for confirmed failure and cooldown behavior
+- Session summary printed at shutdown and saved to `logs/session_*.json`
+- Overlay and terminal startup visibility for source, printer backend, and action
+- Optional HTTP auth token and extra header support
+- Lightweight architecture notes and demo asset checklist in `docs/`
+
 ## Folder Structure
 
 ```text
@@ -53,11 +61,15 @@ printer_fail_demo/
 ├── annotator.py
 ├── actions.py
 ├── printer_controller.py
+├── session_summary.py
 ├── sources.py
 ├── utils.py
+├── docs/
+│   └── architecture.md
 ├── tests/
 │   ├── test_actions.py
 │   ├── test_printer_controller.py
+│   ├── test_runner.py
 │   └── test_utils.py
 ├── models/
 │   └── model.pt
@@ -113,6 +125,9 @@ PRINTER_STOP_ENDPOINT = "/stop"
 PRINTER_PAUSE_ENDPOINT = "/pause"
 PRINTER_HEALTH_ENDPOINT = "/health"
 PRINTER_REQUEST_TIMEOUT_SECONDS = 3
+PRINTER_API_TOKEN = ""
+PRINTER_AUTH_HEADER_NAME = "Authorization"
+PRINTER_EXTRA_HEADERS_JSON = ""
 ```
 
 Use `PRINTER_ACTION = "pause"` to request a pause instead of a stop.
@@ -154,6 +169,31 @@ Unprefixed names such as `PRINTER_BACKEND` and `PRINTER_BASE_URL` are also suppo
 
 If HTTP configuration is incomplete, PrintSentinel falls back to the simulated backend. If healthcheck or action requests fail, it prints a warning and continues monitoring safely.
 
+Optional auth/header examples:
+
+```bash
+export PRINTSENTINEL_PRINTER_API_TOKEN="Bearer replace-with-token"
+export PRINTSENTINEL_PRINTER_AUTH_HEADER_NAME=Authorization
+export PRINTSENTINEL_PRINTER_EXTRA_HEADERS_JSON='{"X-Printer-Profile": "demo"}'
+python main.py
+```
+
+The token is sent as the configured header value. Include prefixes such as `Bearer` in the token value if your endpoint expects them.
+
+## Session Summary
+
+Each monitoring run prints a terminal summary at shutdown and writes a small JSON file to `logs/session_*.json`. The summary includes:
+
+- source used
+- printer backend/action
+- start/end time and duration
+- frames processed
+- failure-like detection frames
+- confirmed failure sequences
+- actions triggered
+- screenshots saved
+- last printer action result
+
 ## Demo Workflow
 
 1. Start the app with `python main.py`.
@@ -162,6 +202,7 @@ If HTTP configuration is incomplete, PrintSentinel falls back to the simulated b
 4. Press `q` to quit the monitoring window.
 5. Check `captures/` for failure screenshots.
 6. Check `logs/events.csv` for event rows.
+7. Check `logs/session_*.json` for the run summary.
 
 ## Screenshots
 
@@ -171,6 +212,7 @@ Add portfolio screenshots here after running the app:
 - Monitoring window in `STATUS: MONITORING`
 - Confirmed failure window in `STATUS: FAIL DETECTED -> STOP PRINTER`
 - Example `logs/events.csv` row
+- Example terminal session summary
 
 ## Tests
 
@@ -178,14 +220,14 @@ Add portfolio screenshots here after running the app:
 pytest -q
 ```
 
-The test suite covers safe filename generation, cooldown behavior, CSV row creation, event log writing, and simulated action routing. It does not require a webcam, live OpenCV window, or YOLO model execution.
+The test suite covers safe filename generation, cooldown behavior, CSV row creation, event log writing, simulated action routing, controller selection, HTTP request routing, confirmed failure orchestration, and cooldown suppression. It does not require a webcam, live OpenCV window, YOLO model execution, or real printer.
 
 HTTP controller tests use mocked request sessions and do not require a real printer.
 
 ## Roadmap
 
-- Add mocked runner tests for confirmed failure orchestration
-- Add optional authentication/header support for HTTP printer endpoints
+- Add printer-specific adapter examples behind `printer_controller.py`
 - Add calibration guidance for custom models and camera placement
 - Add optional UI controls for cooldown and simulated action mode
 - Add richer screenshot examples for GitHub documentation
+- Add packaged sample logs/screenshots for portfolio demos

@@ -9,3 +9,4 @@ runs/
 
 captures/*
 !captures/.gitkeep
+logs/session_*.json
