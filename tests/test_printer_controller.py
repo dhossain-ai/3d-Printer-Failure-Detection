@@ -1,0 +1,134 @@
+"""Tests for printer controller backends."""
+
+import requests
+
+from printer_controller import (
+    HttpPrinterController,
+    PrinterCommandResult,
+    SimulatedPrinterController,
+    create_printer_controller,
+    execute_printer_action,
+)
+
+
+class FakeResponse:
+    """Minimal response object for HTTP controller tests."""
+
+    def __init__(self, error: requests.RequestException | None = None) -> None:
+        """Create a fake response that can optionally fail."""
+
+        self._error = error
+
+    def raise_for_status(self) -> None:
+        """Raise the configured HTTP error if present."""
+
+        if self._error is not None:
+            raise self._error
+
+
+class FakeSession:
+    """Minimal requests-like session for routing tests."""
+
+    def __init__(self, error: requests.RequestException | None = None) -> None:
+        """Create a fake session that records requests."""
+
+        self.error = error
+        self.get_calls: list[tuple[str, float]] = []
+        self.post_calls: list[tuple[str, float]] = []
+
+    def get(self, url: str, timeout: float) -> FakeResponse:
+        """Record a GET request."""
+
+        self.get_calls.append((url, timeout))
+        if self.error is not None:
+            raise self.error
+        return FakeResponse()
+
+    def post(self, url: str, timeout: float) -> FakeResponse:
+        """Record a POST request."""
+
+        self.post_calls.append((url, timeout))
+        if self.error is not None:
+            raise self.error
+        return FakeResponse()
+
+
+def test_create_printer_controller_defaults_to_simulated() -> None:
+    """The default safe backend should be simulated."""
+
+    controller = create_printer_controller(backend="simulated")
+
+    assert isinstance(controller, SimulatedPrinterController)
+
+
+def test_create_printer_controller_falls_back_when_http_config_missing(capsys) -> None:
+    """Missing HTTP base URL should fall back safely."""
+
+    controller = create_printer_controller(backend="http", base_url="")
+
+    assert isinstance(controller, SimulatedPrinterController)
+    assert "Falling back to simulated backend" in capsys.readouterr().err
+
+
+def test_simulated_controller_reports_success(capsys) -> None:
+    """Simulated actions should print clear messages and succeed."""
+
+    controller = SimulatedPrinterController()
+    result = controller.stop_print()
+
+    assert result == PrinterCommandResult(
+        action="stop",
+        success=True,
+        message="SIMULATED PRINTER ACTION: STOP requested.",
+    )
+    assert "STOP requested" in capsys.readouterr().err
+
+
+def test_http_controller_routes_stop_pause_and_health_requests() -> None:
+    """HTTP controller should send requests to configured endpoints."""
+
+    session = FakeSession()
+    controller = HttpPrinterController(
+        base_url="http://printer.local/api",
+        stop_endpoint="/job/stop",
+        pause_endpoint="/job/pause",
+        health_endpoint="/status",
+        timeout_seconds=2.5,
+        session=session,
+    )
+
+    assert controller.healthcheck().success
+    assert controller.stop_print().success
+    assert controller.pause_print().success
+
+    assert session.get_calls == [("http://printer.local/api/status", 2.5)]
+    assert session.post_calls == [
+        ("http://printer.local/api/job/stop", 2.5),
+        ("http://printer.local/api/job/pause", 2.5),
+    ]
+
+
+def test_http_controller_returns_failure_without_raising() -> None:
+    """HTTP request failures should return a failed command result."""
+
+    session = FakeSession(error=requests.Timeout("timeout"))
+    controller = HttpPrinterController(
+        base_url="http://printer.local",
+        timeout_seconds=1.0,
+        session=session,
+    )
+
+    result = controller.stop_print()
+
+    assert not result.success
+    assert result.action == "stop"
+    assert "failed" in result.message
+
+
+def test_execute_printer_action_routes_pause() -> None:
+    """Action routing should call the requested controller method."""
+
+    controller = SimulatedPrinterController()
+
+    assert execute_printer_action(controller, "pause").action == "pause"
+    assert execute_printer_action(controller, "unknown").action == "stop"
