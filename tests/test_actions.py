@@ -2,7 +2,45 @@
 
 from pathlib import Path
 
-from actions import FailureEvent, append_event_log, build_event_row, get_simulated_action_name
+from actions import (
+    FailureEvent,
+    append_event_log,
+    build_event_row,
+    get_simulated_action_name,
+    trigger_printer_response,
+)
+from printer_controller import PrinterCommandResult
+
+
+class FailingController:
+    """Controller stub that fails health and action requests."""
+
+    def stop_print(self) -> PrinterCommandResult:
+        """Return a failed stop result."""
+
+        return PrinterCommandResult(
+            action="stop",
+            success=False,
+            message="stop failed",
+        )
+
+    def pause_print(self) -> PrinterCommandResult:
+        """Return a failed pause result."""
+
+        return PrinterCommandResult(
+            action="pause",
+            success=False,
+            message="pause failed",
+        )
+
+    def healthcheck(self) -> PrinterCommandResult:
+        """Return a failed healthcheck result."""
+
+        return PrinterCommandResult(
+            action="healthcheck",
+            success=False,
+            message="health failed",
+        )
 
 
 def test_build_event_row_formats_confidence_and_path() -> None:
@@ -54,3 +92,14 @@ def test_get_simulated_action_name_defaults_to_stop() -> None:
     assert get_simulated_action_name(" PAUSE ") == "pause"
     assert get_simulated_action_name("stop") == "stop"
     assert get_simulated_action_name("shutdown") == "stop"
+
+
+def test_trigger_printer_response_warns_without_raising(capsys) -> None:
+    """Printer control failures should be reported without crashing."""
+
+    result = trigger_printer_response("stop", controller=FailingController())
+
+    captured = capsys.readouterr()
+    assert not result.success
+    assert "health failed" in captured.err
+    assert "stop failed" in captured.err
