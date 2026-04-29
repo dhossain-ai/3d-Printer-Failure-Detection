@@ -5,6 +5,23 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
 
+
+def _env_string(name: str, default: str) -> str:
+    """Return a stripped environment variable value or a default."""
+
+    return os.getenv(f"PRINTSENTINEL_{name}", os.getenv(name, default)).strip()
+
+
+def _env_float(name: str, default: float) -> float:
+    """Return a float environment variable value or a safe default."""
+
+    raw_value = _env_string(name, str(default))
+    try:
+        return float(raw_value)
+    except ValueError:
+        return default
+
+
 MODEL_PATH = BASE_DIR / "models" / "model.pt"
 SAMPLE_VIDEO_PATH = BASE_DIR / "assets" / "demo.mp4"
 CAPTURES_DIR = BASE_DIR / "captures"
@@ -17,36 +34,13 @@ CONSECUTIVE_FAIL_FRAMES = 3
 ALERT_COOLDOWN_SECONDS = 20
 ALERT_BEEP_ENABLED = False
 
-PRINTER_BACKEND = os.getenv(
-    "PRINTSENTINEL_PRINTER_BACKEND",
-    os.getenv("PRINTER_BACKEND", "simulated"),
-).strip()
-PRINTER_ACTION = os.getenv(
-    "PRINTSENTINEL_PRINTER_ACTION",
-    os.getenv("PRINTER_ACTION", "stop"),
-).strip()
-PRINTER_BASE_URL = os.getenv(
-    "PRINTSENTINEL_PRINTER_BASE_URL",
-    os.getenv("PRINTER_BASE_URL", ""),
-).strip()
-PRINTER_STOP_ENDPOINT = os.getenv(
-    "PRINTSENTINEL_PRINTER_STOP_ENDPOINT",
-    os.getenv("PRINTER_STOP_ENDPOINT", "/stop"),
-).strip()
-PRINTER_PAUSE_ENDPOINT = os.getenv(
-    "PRINTSENTINEL_PRINTER_PAUSE_ENDPOINT",
-    os.getenv("PRINTER_PAUSE_ENDPOINT", "/pause"),
-).strip()
-PRINTER_HEALTH_ENDPOINT = os.getenv(
-    "PRINTSENTINEL_PRINTER_HEALTH_ENDPOINT",
-    os.getenv("PRINTER_HEALTH_ENDPOINT", "/health"),
-).strip()
-PRINTER_REQUEST_TIMEOUT_SECONDS = float(
-    os.getenv(
-        "PRINTSENTINEL_PRINTER_REQUEST_TIMEOUT_SECONDS",
-        os.getenv("PRINTER_REQUEST_TIMEOUT_SECONDS", "3"),
-    )
-)
+PRINTER_BACKEND = _env_string("PRINTER_BACKEND", "simulated")
+PRINTER_ACTION = _env_string("PRINTER_ACTION", "stop")
+PRINTER_BASE_URL = _env_string("PRINTER_BASE_URL", "")
+PRINTER_STOP_ENDPOINT = _env_string("PRINTER_STOP_ENDPOINT", "/stop")
+PRINTER_PAUSE_ENDPOINT = _env_string("PRINTER_PAUSE_ENDPOINT", "/pause")
+PRINTER_HEALTH_ENDPOINT = _env_string("PRINTER_HEALTH_ENDPOINT", "/health")
+PRINTER_REQUEST_TIMEOUT_SECONDS = _env_float("PRINTER_REQUEST_TIMEOUT_SECONDS", 3.0)
 
 SIMULATED_ACTION = PRINTER_ACTION
 
