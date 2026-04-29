@@ -1,5 +1,6 @@
 """Printer-control backends for PrintSentinel."""
 
+import json
 import sys
 from dataclasses import dataclass
 from typing import Protocol
@@ -9,7 +10,10 @@ import requests
 
 from config import (
     PRINTER_BACKEND,
+    PRINTER_API_TOKEN,
+    PRINTER_AUTH_HEADER_NAME,
     PRINTER_BASE_URL,
+    PRINTER_EXTRA_HEADERS_JSON,
     PRINTER_HEALTH_ENDPOINT,
     PRINTER_PAUSE_ENDPOINT,
     PRINTER_REQUEST_TIMEOUT_SECONDS,
@@ -76,6 +80,7 @@ class HttpPrinterController:
         pause_endpoint: str = PRINTER_PAUSE_ENDPOINT,
         health_endpoint: str = PRINTER_HEALTH_ENDPOINT,
         timeout_seconds: float = PRINTER_REQUEST_TIMEOUT_SECONDS,
+        headers: dict[str, str] | None = None,
         session: requests.Session | None = None,
     ) -> None:
         """Create an HTTP printer controller."""
@@ -88,6 +93,7 @@ class HttpPrinterController:
         self._pause_endpoint = pause_endpoint
         self._health_endpoint = health_endpoint
         self._timeout_seconds = timeout_seconds
+        self._headers = headers or build_request_headers()
         self._session = session or requests.Session()
 
     def stop_print(self) -> PrinterCommandResult:
@@ -105,7 +111,11 @@ class HttpPrinterController:
 
         url = self._build_url(self._health_endpoint)
         try:
-            response = self._session.get(url, timeout=self._timeout_seconds)
+            response = self._session.get(
+                url,
+                timeout=self._timeout_seconds,
+                headers=self._headers,
+            )
             response.raise_for_status()
         except requests.RequestException as exc:
             return PrinterCommandResult(
@@ -125,7 +135,11 @@ class HttpPrinterController:
 
         url = self._build_url(endpoint)
         try:
-            response = self._session.post(url, timeout=self._timeout_seconds)
+            response = self._session.post(
+                url,
+                timeout=self._timeout_seconds,
+                headers=self._headers,
+            )
             response.raise_for_status()
         except requests.RequestException as exc:
             return PrinterCommandResult(
@@ -153,6 +167,7 @@ def create_printer_controller(
     pause_endpoint: str = PRINTER_PAUSE_ENDPOINT,
     health_endpoint: str = PRINTER_HEALTH_ENDPOINT,
     timeout_seconds: float = PRINTER_REQUEST_TIMEOUT_SECONDS,
+    headers: dict[str, str] | None = None,
 ) -> PrinterController:
     """Create the configured printer controller with safe simulated fallback."""
 
@@ -165,6 +180,7 @@ def create_printer_controller(
                 pause_endpoint=pause_endpoint,
                 health_endpoint=health_endpoint,
                 timeout_seconds=timeout_seconds,
+                headers=headers,
             )
         except ValueError as exc:
             print(
@@ -192,6 +208,45 @@ def normalize_printer_action(action: str) -> str:
         return "pause"
 
     return "stop"
+
+
+def build_request_headers(
+    api_token: str = PRINTER_API_TOKEN,
+    auth_header_name: str = PRINTER_AUTH_HEADER_NAME,
+    extra_headers_json: str = PRINTER_EXTRA_HEADERS_JSON,
+) -> dict[str, str]:
+    """Build optional HTTP headers from simple configuration values."""
+
+    headers: dict[str, str] = {}
+
+    if api_token.strip() and auth_header_name.strip():
+        headers[auth_header_name.strip()] = api_token.strip()
+
+    if extra_headers_json.strip():
+        try:
+            extra_headers = json.loads(extra_headers_json)
+        except json.JSONDecodeError as exc:
+            print(
+                f"PRINTSENTINEL WARNING: invalid PRINTER_EXTRA_HEADERS_JSON: {exc}",
+                file=sys.stderr,
+            )
+            extra_headers = {}
+
+        if isinstance(extra_headers, dict):
+            headers.update(
+                {
+                    str(key): str(value)
+                    for key, value in extra_headers.items()
+                    if str(key).strip()
+                }
+            )
+        else:
+            print(
+                "PRINTSENTINEL WARNING: PRINTER_EXTRA_HEADERS_JSON must be an object.",
+                file=sys.stderr,
+            )
+
+    return headers
 
 
 def execute_printer_action(

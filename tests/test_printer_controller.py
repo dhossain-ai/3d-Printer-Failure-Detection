@@ -6,6 +6,7 @@ from printer_controller import (
     HttpPrinterController,
     PrinterCommandResult,
     SimulatedPrinterController,
+    build_request_headers,
     create_printer_controller,
     execute_printer_action,
 )
@@ -36,7 +37,12 @@ class FakeSession:
         self.get_calls: list[tuple[str, float]] = []
         self.post_calls: list[tuple[str, float]] = []
 
-    def get(self, url: str, timeout: float) -> FakeResponse:
+    def get(
+        self,
+        url: str,
+        timeout: float,
+        headers: dict[str, str] | None = None,
+    ) -> FakeResponse:
         """Record a GET request."""
 
         self.get_calls.append((url, timeout))
@@ -44,7 +50,12 @@ class FakeSession:
             raise self.error
         return FakeResponse()
 
-    def post(self, url: str, timeout: float) -> FakeResponse:
+    def post(
+        self,
+        url: str,
+        timeout: float,
+        headers: dict[str, str] | None = None,
+    ) -> FakeResponse:
         """Record a POST request."""
 
         self.post_calls.append((url, timeout))
@@ -132,3 +143,31 @@ def test_execute_printer_action_routes_pause() -> None:
 
     assert execute_printer_action(controller, "pause").action == "pause"
     assert execute_printer_action(controller, "unknown").action == "stop"
+
+
+def test_build_request_headers_adds_token_and_extra_headers() -> None:
+    """HTTP headers should combine token and JSON extras."""
+
+    headers = build_request_headers(
+        api_token="Bearer secret",
+        auth_header_name="Authorization",
+        extra_headers_json='{"X-Printer": "demo"}',
+    )
+
+    assert headers == {
+        "Authorization": "Bearer secret",
+        "X-Printer": "demo",
+    }
+
+
+def test_build_request_headers_ignores_invalid_json(capsys) -> None:
+    """Invalid extra header JSON should warn and continue safely."""
+
+    headers = build_request_headers(
+        api_token="secret",
+        auth_header_name="X-Api-Key",
+        extra_headers_json="{bad json",
+    )
+
+    assert headers == {"X-Api-Key": "secret"}
+    assert "invalid PRINTER_EXTRA_HEADERS_JSON" in capsys.readouterr().err
