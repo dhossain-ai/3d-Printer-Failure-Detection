@@ -3,9 +3,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Union
-
-import cv2
+from typing import Any, Union
 
 from config import SAMPLE_VIDEO_PATH
 
@@ -73,12 +71,17 @@ def validate_source(source: VideoSource) -> str | None:
     return None
 
 
-def open_capture(source: VideoSource) -> tuple[cv2.VideoCapture | None, str | None]:
+def open_capture(source: VideoSource) -> tuple[Any | None, str | None]:
     """Open a selected source and return a capture or a readable error."""
 
     validation_error = validate_source(source)
     if validation_error is not None:
         return None, validation_error
+
+    try:
+        import cv2
+    except ImportError as exc:
+        return None, f"OpenCV is not installed or could not be imported: {exc}"
 
     capture = cv2.VideoCapture(source.value)
     if not capture.isOpened():

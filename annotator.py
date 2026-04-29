@@ -3,8 +3,6 @@
 from dataclasses import dataclass
 from typing import Any
 
-import cv2
-
 from config import (
     COLOR_OVERLAY_BACKGROUND,
     COLOR_STATUS_CHECKING,
@@ -42,6 +40,7 @@ class OverlayState:
 def draw_monitoring_overlay(frame: Any, state: OverlayState) -> Any:
     """Draw a compact monitoring overlay on an annotated frame."""
 
+    cv2 = _cv2()
     status_text = _status_text(state)
     status_color = _status_color(state)
     last_detection = _last_detection_text(state)
@@ -164,6 +163,7 @@ def _put_text(
 ) -> None:
     """Draw anti-aliased OpenCV text."""
 
+    cv2 = _cv2()
     cv2.putText(
         frame,
         text,
@@ -174,3 +174,11 @@ def _put_text(
         thickness,
         cv2.LINE_AA,
     )
+
+
+def _cv2() -> Any:
+    """Import OpenCV only when frame drawing is actually needed."""
+
+    import cv2
+
+    return cv2

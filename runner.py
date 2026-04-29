@@ -4,8 +4,6 @@ import sys
 from time import monotonic
 from typing import Any
 
-import cv2
-
 from actions import handle_confirmed_failure
 from annotator import OverlayState, draw_monitoring_overlay
 from config import ALERT_COOLDOWN_SECONDS, CONSECUTIVE_FAIL_FRAMES, WINDOW_NAME
@@ -86,12 +84,13 @@ class PrintSentinelRunner:
                         confidence=latest_failure_confidence,
                     )
 
+                cv2 = _cv2()
                 cv2.imshow(WINDOW_NAME, annotated)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
         finally:
             capture.release()
-            cv2.destroyAllWindows()
+            _cv2().destroyAllWindows()
 
         return None
 
@@ -125,3 +124,11 @@ class PrintSentinelRunner:
                 f"PRINTSENTINEL WARNING: failure action skipped: {exc}",
                 file=sys.stderr,
             )
+
+
+def _cv2() -> Any:
+    """Import OpenCV only when the monitoring window is active."""
+
+    import cv2
+
+    return cv2
