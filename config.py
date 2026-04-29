@@ -1,5 +1,6 @@
 """Application configuration for PrintSentinel."""
 
+import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -14,8 +15,40 @@ FAILURE_CLASSES = ("spaghetti", "stringing", "zits")
 CONFIDENCE_THRESHOLD = 0.35
 CONSECUTIVE_FAIL_FRAMES = 3
 ALERT_COOLDOWN_SECONDS = 20
-SIMULATED_ACTION = "stop"
 ALERT_BEEP_ENABLED = False
+
+PRINTER_BACKEND = os.getenv(
+    "PRINTSENTINEL_PRINTER_BACKEND",
+    os.getenv("PRINTER_BACKEND", "simulated"),
+).strip()
+PRINTER_ACTION = os.getenv(
+    "PRINTSENTINEL_PRINTER_ACTION",
+    os.getenv("PRINTER_ACTION", "stop"),
+).strip()
+PRINTER_BASE_URL = os.getenv(
+    "PRINTSENTINEL_PRINTER_BASE_URL",
+    os.getenv("PRINTER_BASE_URL", ""),
+).strip()
+PRINTER_STOP_ENDPOINT = os.getenv(
+    "PRINTSENTINEL_PRINTER_STOP_ENDPOINT",
+    os.getenv("PRINTER_STOP_ENDPOINT", "/stop"),
+).strip()
+PRINTER_PAUSE_ENDPOINT = os.getenv(
+    "PRINTSENTINEL_PRINTER_PAUSE_ENDPOINT",
+    os.getenv("PRINTER_PAUSE_ENDPOINT", "/pause"),
+).strip()
+PRINTER_HEALTH_ENDPOINT = os.getenv(
+    "PRINTSENTINEL_PRINTER_HEALTH_ENDPOINT",
+    os.getenv("PRINTER_HEALTH_ENDPOINT", "/health"),
+).strip()
+PRINTER_REQUEST_TIMEOUT_SECONDS = float(
+    os.getenv(
+        "PRINTSENTINEL_PRINTER_REQUEST_TIMEOUT_SECONDS",
+        os.getenv("PRINTER_REQUEST_TIMEOUT_SECONDS", "3"),
+    )
+)
+
+SIMULATED_ACTION = PRINTER_ACTION
 
 WINDOW_NAME = "PrintSentinel"
 STATUS_MONITORING = "STATUS: MONITORING"
