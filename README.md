@@ -87,7 +87,8 @@ printer_fail_demo/
 ├── sources.py
 ├── utils.py
 ├── tools/
-│   └── discover_printer.py
+│   ├── discover_printer.py
+│   └── inspect_printer_webui.py
 ├── docs/
 │   └── architecture.md
 ├── tests/
@@ -95,6 +96,7 @@ printer_fail_demo/
 │   ├── test_config.py
 │   ├── test_detector.py
 │   ├── test_discover_printer.py
+│   ├── test_inspect_printer_webui.py
 │   ├── test_notifications.py
 │   ├── test_printer_controller.py
 │   ├── test_runner.py
@@ -274,6 +276,18 @@ Useful results include:
 - `camera_snapshot`: a still-image camera endpoint was found
 
 The printer IP can change if your router DHCP lease changes. Check the printer screen or reserve the IP in your router before relying on the same address later.
+
+## Printer Web UI Inspection
+
+When Moonraker port `7125` is unavailable but the printer web UI responds on port `80`, use the standalone inspector to look for statically visible UI assets and endpoint-looking strings:
+
+```bash
+python tools/inspect_printer_webui.py 192.168.137.211
+```
+
+This utility is read-only. It fetches `http://<host>/` with `GET`, optionally fetches a small number of same-origin JavaScript files with `GET`, caps bytes read per file, and never calls discovered API or control-looking endpoints.
+
+The report lists discovered scripts, stylesheets, possible read-only endpoints, websocket candidates, and possible control endpoints marked `candidate only - not called`. These results help decide whether a future Creality-specific controller is possible without assuming Moonraker is present.
 
 ## Printer Camera Source
 
