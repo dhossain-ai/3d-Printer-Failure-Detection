@@ -9,6 +9,17 @@ import websocket
 logger = logging.getLogger(__name__)
 
 
+import time
+
+def has_file_list_response(message: str) -> bool:
+    try:
+        data = json.loads(message)
+        if isinstance(data, dict) and "retGcodeFileInfo" in data:
+            return True
+    except Exception:
+        pass
+    return False
+
 @dataclass
 class CrealityCommandResult:
     action: str
@@ -22,28 +33,47 @@ class CrealityWebSocketControlClient:
         self.ws_url = ws_url
         self.timeout_seconds = timeout_seconds
 
-    def _send_command(self, action: str, method: str, params: dict) -> CrealityCommandResult:
+    def _send_command(self, action: str, method: str, params: dict, wait_for_key: str | None = None) -> CrealityCommandResult:
         payload = {"method": method, "params": params}
         
         try:
             ws = websocket.create_connection(self.ws_url, timeout=self.timeout_seconds)
             try:
                 ws.send(json.dumps(payload))
+                response_preview = None
+                message_text = "Command sent successfully"
+                
                 try:
-                    response = ws.recv()
-                    # Truncate response_preview
-                    if isinstance(response, str):
-                        response_preview = response[:200] + ("..." if len(response) > 200 else "")
+                    if wait_for_key == "retGcodeFileInfo":
+                        start_time = time.time()
+                        while time.time() - start_time < self.timeout_seconds:
+                            # Adjust timeout for this specific recv to avoid blocking past the total deadline
+                            remaining = self.timeout_seconds - (time.time() - start_time)
+                            if remaining <= 0:
+                                break
+                            ws.settimeout(remaining)
+                            
+                            response = ws.recv()
+                            response_str = response if isinstance(response, str) else str(response)
+                            
+                            if has_file_list_response(response_str):
+                                response_preview = response_str[:200] + ("..." if len(response_str) > 200 else "")
+                                break
+                        else:
+                            message_text = f"Command sent but {wait_for_key} response was not observed"
                     else:
-                        response_preview = str(response)[:200] + ("..." if len(str(response)) > 200 else "")
+                        response = ws.recv()
+                        response_str = response if isinstance(response, str) else str(response)
+                        response_preview = response_str[:200] + ("..." if len(response_str) > 200 else "")
                 except Exception as e:
                     logger.debug(f"No response received or timeout for {action}: {e}")
-                    response_preview = None
+                    if wait_for_key and response_preview is None:
+                        message_text = f"Command sent but {wait_for_key} response was not observed"
                     
                 return CrealityCommandResult(
                     action=action,
                     success=True,
-                    message="Command sent successfully",
+                    message=message_text,
                     response_preview=response_preview
                 )
             finally:
@@ -88,5 +118,6 @@ class CrealityWebSocketControlClient:
         return self._send_command(
             action="request_file_list",
             method="get",
-            params={"reqGcodeFile": 1}
+            params={"reqGcodeFile": 1},
+            wait_for_key="retGcodeFileInfo"
         )

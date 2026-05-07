@@ -371,7 +371,9 @@ python tools/creality_control.py ws://192.168.137.211:9999 fan case on
 python tools/creality_control.py ws://192.168.137.211:9999 files
 ```
 
-Note: These CLI commands are safe to test manually, but the simulated printer backend remains the default for actual failure detection events. Real automated control must be opted into explicitly.
+Note: The `files` command listens briefly for a `retGcodeFileInfo` payload and skips generic status messages to extract the correct file list data.
+
+These CLI commands are safe to test manually, but the simulated printer backend remains the default for actual failure detection events. Real automated control must be opted into explicitly.
 
 ## Printer Camera Source
 

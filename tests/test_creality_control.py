@@ -127,3 +127,50 @@ def test_no_arbitrary_send_method():
     
     for method in public_methods:
         assert method in allowed_methods, f"Found unapproved method: {method}"
+
+
+def test_request_file_list_skips_status_and_finds_target(mock_ws):
+    mock_ws.recv.side_effect = [
+        json.dumps({"someStatus": 1}),
+        json.dumps({"anotherStatus": 2}),
+        json.dumps({"retGcodeFileInfo": [{"name": "test.gcode"}]})
+    ]
+    
+    client = CrealityWebSocketControlClient("ws://test:9999", timeout_seconds=1.0)
+    result = client.request_file_list()
+    
+    assert result.success is True
+    assert result.response_preview is not None
+    assert "retGcodeFileInfo" in result.response_preview
+    assert mock_ws.recv.call_count == 3
+
+
+def test_request_file_list_timeout_after_status(mock_ws):
+    import time
+    def slow_recv():
+        time.sleep(0.6)
+        return json.dumps({"someStatus": 1})
+        
+    mock_ws.recv.side_effect = slow_recv
+    
+    client = CrealityWebSocketControlClient("ws://test:9999", timeout_seconds=1.0)
+    result = client.request_file_list()
+    
+    assert result.success is True
+    assert "response was not observed" in result.message
+    assert result.response_preview is None
+
+
+def test_request_file_list_malformed_json(mock_ws):
+    mock_ws.recv.side_effect = [
+        "not-json",
+        json.dumps({"retGcodeFileInfo": []})
+    ]
+    
+    client = CrealityWebSocketControlClient("ws://test:9999", timeout_seconds=1.0)
+    result = client.request_file_list()
+    
+    assert result.success is True
+    assert result.response_preview is not None
+    assert "retGcodeFileInfo" in result.response_preview
+    assert mock_ws.recv.call_count == 2

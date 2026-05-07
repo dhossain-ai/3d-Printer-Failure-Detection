@@ -52,6 +52,11 @@ def main():
     print(f"Action: {result.action}")
     print(f"Success: {result.success}")
     print(f"Message: {result.message}")
+    if args.command == "files":
+        if result.response_preview and "retGcodeFileInfo" in result.response_preview:
+            print("Status: File list detected.")
+        else:
+            print("Status: File list not detected.")
     if result.response_preview:
         print(f"Response: {result.response_preview}")
 
