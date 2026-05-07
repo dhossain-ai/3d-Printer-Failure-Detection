@@ -61,6 +61,12 @@ document.addEventListener("DOMContentLoaded", () => {
             if (config.camera_configured && config.printer_camera_url) {
                 cameraContainer.innerHTML = `<img src="${config.printer_camera_url}" alt="Printer Camera Stream">`;
             }
+
+            // Update new config fields
+            document.getElementById("config-controls").textContent = config.control_enabled ? "Yes" : "No";
+            document.getElementById("config-camera").textContent = config.camera_configured ? "Yes" : "No";
+            document.getElementById("config-ws").textContent = config.status_ws_configured ? "Yes" : "No";
+            document.getElementById("config-notifications").textContent = config.notifications_enabled ? "Yes" : "No";
         } catch (e) {
             console.error("Failed to load config", e);
         }
@@ -139,12 +145,32 @@ document.addEventListener("DOMContentLoaded", () => {
     // Files
     btnRefreshFiles.addEventListener("click", async () => {
         if (!controlsEnabled) return;
+        
+        const filesPreview = document.getElementById("files-preview");
+        const filesTable = document.getElementById("files-table");
+        const filesTbody = document.getElementById("files-tbody");
+        
         try {
+            filesTable.style.display = "none";
+            filesPreview.style.display = "block";
             filesPreview.textContent = "Loading...";
+            
             const res = await fetch("/api/files");
             const data = await res.json();
+            
             if (res.ok) {
-                filesPreview.textContent = data.response_preview || "Empty response";
+                if (data.files && data.files.length > 0) {
+                    filesPreview.style.display = "none";
+                    filesTable.style.display = "table";
+                    filesTbody.innerHTML = "";
+                    data.files.forEach(f => {
+                        const tr = document.createElement("tr");
+                        tr.innerHTML = `<td>${f.name || "Unknown"}</td>`;
+                        filesTbody.appendChild(tr);
+                    });
+                } else {
+                    filesPreview.textContent = data.response_preview || "Empty response";
+                }
             } else {
                 filesPreview.textContent = `Error: ${data.detail}`;
             }
@@ -153,9 +179,67 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    // Recent Events
+    async function loadEvents() {
+        try {
+            const res = await fetch("/api/events/recent");
+            const data = await res.json();
+            const tbody = document.getElementById("events-tbody");
+            
+            if (data.events && data.events.length > 0) {
+                tbody.innerHTML = "";
+                data.events.forEach(ev => {
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td>${ev.timestamp || "--"}</td>
+                        <td>${ev.source || "--"}</td>
+                        <td>${ev.label || "--"}</td>
+                        <td>${ev.confidence || "--"}</td>
+                        <td>${ev.action || "--"}</td>
+                        <td>${ev.screenshot_path ? "Yes" : "No"}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } else {
+                tbody.innerHTML = `<tr><td colspan="6" class="placeholder">No recent events found.</td></tr>`;
+            }
+        } catch (e) {
+            console.error("Failed to load events", e);
+        }
+    }
+
+    // Recent Notifications
+    async function loadNotifications() {
+        try {
+            const res = await fetch("/api/notifications/recent");
+            const data = await res.json();
+            const tbody = document.getElementById("notifications-tbody");
+            
+            if (data.notifications && data.notifications.length > 0) {
+                tbody.innerHTML = "";
+                data.notifications.forEach(n => {
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td>${n.timestamp || "--"}</td>
+                        <td>${n.target || "--"}</td>
+                        <td>${n.status || "--"}</td>
+                        <td>${n.message || "--"}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } else {
+                tbody.innerHTML = `<tr><td colspan="4" class="placeholder">No recent notifications found.</td></tr>`;
+            }
+        } catch (e) {
+            console.error("Failed to load notifications", e);
+        }
+    }
+
     // Init
     loadConfig().then(() => {
         updateStatus();
+        loadEvents();
+        loadNotifications();
         setInterval(updateStatus, 3000);
     });
 });

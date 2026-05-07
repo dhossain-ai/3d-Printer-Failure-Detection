@@ -533,7 +533,12 @@ Each monitoring run prints a terminal summary at shutdown and writes a small JSO
 
 ## Local Web Dashboard
 
-PrintSentinel includes an opt-in, local-only web dashboard powered by FastAPI. The dashboard provides real-time monitoring of printer status and camera feeds alongside the local detection status. When enabled, it also provides access to safe Creality controls.
+PrintSentinel includes an opt-in, local-only web dashboard powered by FastAPI. The dashboard provides:
+- Real-time monitoring of printer status and camera feeds.
+- Safe Creality controls (lights, fans, and file listing).
+- Recent failure events from the local `events.csv` log.
+- Recent notification history from the local `notifications.csv` log.
+- An parsed file list showing available models on the printer.
 
 To start the dashboard on port `8001`:
 
@@ -551,6 +556,7 @@ $env:PRINTSENTINEL_CREALITY_CONTROL_ENABLED="true"
 Safety Notes:
 - The dashboard is **local-only** and does not require cloud integrations.
 - It only implements safe whitelisted controls like lights, fans, and file listing.
+- The AI status shown is mostly for configuration reference. Live detection status requires running the monitoring loop alongside the dashboard.
 - **Do not expose this dashboard to the internet.** It has no authentication and could allow uncontrolled access to printer APIs on your LAN.
 
 ## Screenshots

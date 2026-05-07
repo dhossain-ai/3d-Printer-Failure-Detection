@@ -44,6 +44,7 @@ def get_config():
         "control_enabled": config.CREALITY_CONTROL_ENABLED,
         "model_device": config.MODEL_DEVICE,
         "printer_camera_url": config.PRINTER_CAMERA_URL,
+        "notifications_enabled": config.NOTIFICATIONS_ENABLED,
     }
 
 
@@ -113,4 +114,51 @@ def get_files():
     if not res.success:
         raise HTTPException(status_code=500, detail=res.message)
         
-    return {"success": True, "response_preview": res.response_preview}
+    files = []
+    if res.response_preview:
+        import json
+        try:
+            data = json.loads(res.response_preview)
+            if "retGcodeFileInfo" in data:
+                for file_info in data["retGcodeFileInfo"]:
+                    if isinstance(file_info, dict) and "name" in file_info:
+                        files.append(file_info)
+        except Exception:
+            pass
+            
+    return {
+        "success": True, 
+        "files": files, 
+        "response_preview": res.response_preview,
+        "message": res.message
+    }
+
+
+import csv
+import os
+
+def read_recent_csv(file_path: Path, limit: int = 20):
+    if not file_path.exists():
+        return []
+    rows = []
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                rows.append(row)
+    except Exception:
+        pass
+    return list(reversed(rows))[:limit]
+
+
+@app.get("/api/events/recent")
+def get_recent_events():
+    events = read_recent_csv(config.EVENTS_CSV_PATH)
+    return {"events": events}
+
+
+@app.get("/api/notifications/recent")
+def get_recent_notifications():
+    notifications_path = config.LOGS_DIR / "notifications.csv"
+    notifications = read_recent_csv(notifications_path)
+    return {"notifications": notifications}
