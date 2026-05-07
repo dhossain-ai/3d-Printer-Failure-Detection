@@ -22,6 +22,17 @@ def _env_float(name: str, default: float) -> float:
         return default
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    """Return a boolean environment variable value or a safe default."""
+
+    raw_value = _env_string(name, str(default)).lower()
+    if raw_value in {"1", "true", "yes", "on"}:
+        return True
+    if raw_value in {"0", "false", "no", "off"}:
+        return False
+    return default
+
+
 MODEL_PATH = BASE_DIR / "models" / "model.pt"
 SAMPLE_VIDEO_PATH = BASE_DIR / "assets" / "demo.mp4"
 CAPTURES_DIR = BASE_DIR / "captures"
@@ -46,6 +57,13 @@ PRINTER_AUTH_HEADER_NAME = _env_string("PRINTER_AUTH_HEADER_NAME", "Authorizatio
 PRINTER_EXTRA_HEADERS_JSON = _env_string("PRINTER_EXTRA_HEADERS_JSON", "")
 
 SIMULATED_ACTION = PRINTER_ACTION
+
+NOTIFICATIONS_ENABLED = _env_bool("NOTIFICATIONS_ENABLED", False)
+WINDOWS_NOTIFICATIONS_ENABLED = _env_bool("WINDOWS_NOTIFICATIONS_ENABLED", False)
+WINDOWS_NOTIFICATION_APP_NAME = _env_string(
+    "WINDOWS_NOTIFICATION_APP_NAME",
+    "PrintSentinel",
+)
 
 WINDOW_NAME = "PrintSentinel"
 STATUS_MONITORING = "STATUS: MONITORING"
