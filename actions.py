@@ -14,6 +14,8 @@ from config import (
     LOGS_DIR,
     PRINTER_ACTION,
 )
+from notifications.manager import NotificationManager, build_enabled_providers
+from notifications.models import FailureNotification, NotificationResult
 from printer_controller import (
     PrinterCommandResult,
     PrinterController,
@@ -98,7 +100,7 @@ def build_event_row(event: FailureEvent) -> dict[str, str]:
         "label": event.label,
         "confidence": f"{event.confidence:.4f}",
         "action": event.action,
-        "screenshot_path": str(event.screenshot_path),
+        "screenshot_path": event.screenshot_path.as_posix(),
     }
 
 
@@ -159,6 +161,13 @@ def handle_confirmed_failure(
     )
     append_event_log(event)
     alert_failure(source, label, confidence)
+    try:
+        send_failure_notifications(event)
+    except Exception as exc:  # noqa: BLE001 - notifications must not block printer action.
+        print(
+            f"PRINTSENTINEL WARNING: notification handling failed: {exc}",
+            file=sys.stderr,
+        )
     action_result = trigger_printer_response(action)
 
     return FailureEvent(
@@ -171,6 +180,44 @@ def handle_confirmed_failure(
         action_success=action_result.success,
         action_message=action_result.message,
     )
+
+
+def send_failure_notifications(event: FailureEvent) -> list[NotificationResult]:
+    """Send notification alerts for a confirmed failure without raising."""
+
+    notification = FailureNotification(
+        timestamp=event.timestamp,
+        source=event.source,
+        label=event.label,
+        confidence=event.confidence,
+        action=event.action,
+        screenshot_path=event.screenshot_path,
+    )
+    try:
+        results = NotificationManager(build_enabled_providers()).send_failure_alert(
+            notification
+        )
+    except Exception as exc:  # noqa: BLE001 - notifications must never crash monitoring.
+        results = [
+            NotificationResult(
+                provider="notification_manager",
+                destination_id="configured_providers",
+                success=False,
+                message=f"Notification handling failed: {exc}",
+            )
+        ]
+
+    for result in results:
+        if not result.success:
+            print(
+                (
+                    "PRINTSENTINEL WARNING: notification failed "
+                    f"({result.provider}/{result.destination_id}): {result.message}"
+                ),
+                file=sys.stderr,
+            )
+
+    return results
 
 
 def get_simulated_action_name(action: str) -> str:

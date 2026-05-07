@@ -120,6 +120,10 @@ def test_handle_confirmed_failure_runs_all_response_steps(monkeypatch, tmp_path:
     def fake_alert(source, label, confidence):
         calls.append("alert")
 
+    def fake_notify(event):
+        calls.append("notify")
+        return []
+
     def fake_printer(action):
         calls.append("printer")
         return PrinterCommandResult(
@@ -131,6 +135,7 @@ def test_handle_confirmed_failure_runs_all_response_steps(monkeypatch, tmp_path:
     monkeypatch.setattr("actions.save_failure_screenshot", fake_save)
     monkeypatch.setattr("actions.append_event_log", fake_log)
     monkeypatch.setattr("actions.alert_failure", fake_alert)
+    monkeypatch.setattr("actions.send_failure_notifications", fake_notify)
     monkeypatch.setattr("actions.trigger_printer_response", fake_printer)
 
     from actions import handle_confirmed_failure
@@ -143,7 +148,57 @@ def test_handle_confirmed_failure_runs_all_response_steps(monkeypatch, tmp_path:
         printer_action="pause",
     )
 
-    assert calls == ["screenshot", "csv", "alert", "printer"]
+    assert calls == ["screenshot", "csv", "alert", "notify", "printer"]
     assert event.action == "pause"
     assert event.action_success is True
     assert event.action_message == "ok"
+
+
+def test_handle_confirmed_failure_runs_printer_when_notification_fails(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """Notification failures should not block printer response."""
+
+    calls: list[str] = []
+
+    def fake_save(frame, timestamp, label):
+        calls.append("screenshot")
+        return tmp_path / "failure.jpg"
+
+    def fake_log(event):
+        calls.append("csv")
+
+    def fake_alert(source, label, confidence):
+        calls.append("alert")
+
+    def fake_notify(event):
+        calls.append("notify")
+        raise RuntimeError("notification failed")
+
+    def fake_printer(action):
+        calls.append("printer")
+        return PrinterCommandResult(
+            action=action,
+            success=True,
+            message="ok",
+        )
+
+    monkeypatch.setattr("actions.save_failure_screenshot", fake_save)
+    monkeypatch.setattr("actions.append_event_log", fake_log)
+    monkeypatch.setattr("actions.alert_failure", fake_alert)
+    monkeypatch.setattr("actions.send_failure_notifications", fake_notify)
+    monkeypatch.setattr("actions.trigger_printer_response", fake_printer)
+
+    from actions import handle_confirmed_failure
+
+    event = handle_confirmed_failure(
+        frame=object(),
+        source="Sample video",
+        label="spaghetti",
+        confidence=0.91,
+        printer_action="stop",
+    )
+
+    assert calls == ["screenshot", "csv", "alert", "notify", "printer"]
+    assert event.action_success is True
