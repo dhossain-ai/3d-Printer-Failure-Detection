@@ -17,3 +17,5 @@ timestamp,backend,action,success,message,response_preview
 1778164750.0712576,simulated,pause,True,SIMULATED PRINTER ACTION: PAUSE requested.,
 1778164750.0712576,simulated,stop,True,SIMULATED PRINTER ACTION: STOP requested.,
 1778164765.0474193,simulated,stop,False,stop failed,
+1778165365.7918446,creality_ws,pause_print,True,ok,
+1778165365.8462203,creality_ws,stop_print,True,ok,

@@ -336,12 +336,13 @@ document.addEventListener("DOMContentLoaded", () => {
             const res = await fetch("/api/ai/status");
             const s = await res.json();
             const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-            set("ai-running", s.running ? "Running" : "Stopped");
+            set("ai-running", s.running ? "Running ▶" : "Stopped ■");
             set("ai-frames", s.frames_processed);
             set("ai-label", s.last_detection_label || "--");
             set("ai-confidence", s.last_detection_confidence ? s.last_detection_confidence.toFixed(2) : "--");
-            set("ai-fail-frames", s.fail_frame_count);
+            set("ai-fail-frames", `${s.fail_frame_count} / ${s.consecutive_fail_frames}`);
             set("ai-confirmed", s.confirmed_failure ? "YES ⚠" : "No");
+            set("ai-action-result", s.last_action_result || "--");
             set("ai-last-error", s.last_error || "--");
 
             // Sync button state with server truth
