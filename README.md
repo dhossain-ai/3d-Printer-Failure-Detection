@@ -346,7 +346,7 @@ This overlay is read-only. It does not send WebSocket application commands, G-co
 
 ## Creality Command Discovery
 
-Real Creality printer control is not implemented yet. Before adding any control adapter, use the static JavaScript scanner and manual browser capture workflow to understand the exact protocol used by the K1C web UI.
+Real Creality printer control for failures is not fully implemented yet. Before adding any control adapter, use the static JavaScript scanner and manual browser capture workflow to understand the exact protocol used by the K1C web UI.
 
 ```bash
 python tools/scan_creality_js_commands.py 192.168.137.211
@@ -355,6 +355,23 @@ python tools/scan_creality_js_commands.py 192.168.137.211
 The scanner is GET-only, fetches same-origin JavaScript assets, applies byte limits, and prints candidate snippets for WebSocket setup, possible command names, control payloads, file APIs, camera/video APIs, and status fields. It does not open a WebSocket or send any command payload.
 
 For manual capture, follow [docs/creality_command_discovery.md](docs/creality_command_discovery.md) and use [docs/creality_command_capture_template.md](docs/creality_command_capture_template.md) for local notes. Do not test stop/cancel on an important print, do not run unknown commands against the printer, and do not paste tokens, secrets, or sensitive captures into committed files.
+
+## Creality Low-Risk Controls
+
+A safe WebSocket control client is available to send specific low-risk commands captured directly from the local K1C web UI. It is restricted to only these whitelisted commands and does not support arbitrary JSON sending.
+
+Pause, stop, temperature, movement, extrude, retract, and arbitrary G-code are intentionally **not implemented** yet, as they require further safety review.
+
+```bash
+python tools/creality_control.py ws://192.168.137.211:9999 light on
+python tools/creality_control.py ws://192.168.137.211:9999 light off
+python tools/creality_control.py ws://192.168.137.211:9999 fan model on
+python tools/creality_control.py ws://192.168.137.211:9999 fan auxiliary off
+python tools/creality_control.py ws://192.168.137.211:9999 fan case on
+python tools/creality_control.py ws://192.168.137.211:9999 files
+```
+
+Note: These CLI commands are safe to test manually, but the simulated printer backend remains the default for actual failure detection events. Real automated control must be opted into explicitly.
 
 ## Printer Camera Source
 
