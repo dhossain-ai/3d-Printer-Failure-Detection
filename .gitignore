@@ -6,6 +6,7 @@ venv/
 .env
 .DS_Store
 runs/
+config/local_notification_settings.json
 
 captures/*
 !captures/.gitkeep

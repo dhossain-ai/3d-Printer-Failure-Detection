@@ -3,7 +3,21 @@
 import os
 from pathlib import Path
 
+from notifications.settings import load_notification_settings
+
 BASE_DIR = Path(__file__).resolve().parent
+_LOCAL_NOTIFICATION_SETTINGS = load_notification_settings()
+
+
+def _env_value(name: str) -> str | None:
+    """Return an explicitly configured environment variable value."""
+
+    prefixed_name = f"PRINTSENTINEL_{name}"
+    if prefixed_name in os.environ:
+        return os.environ[prefixed_name]
+    if name in os.environ:
+        return os.environ[name]
+    return None
 
 
 def _env_string(name: str, default: str) -> str:
@@ -36,6 +50,70 @@ def _env_bool(name: str, default: bool) -> bool:
     """Return a boolean environment variable value or a safe default."""
 
     raw_value = _env_string(name, str(default)).lower()
+    return _parse_bool(raw_value, default)
+
+
+def _notification_string(name: str, default: str) -> str:
+    """Return notification config from env, then local settings, then default."""
+
+    raw_value = _env_value(name)
+    if raw_value is not None and raw_value.strip():
+        return raw_value.strip()
+
+    local_value = _LOCAL_NOTIFICATION_SETTINGS.get(name, default)
+    if local_value is None:
+        return default
+
+    local_text = str(local_value).strip()
+    return local_text if local_text else default
+
+
+def _notification_float(name: str, default: float) -> float:
+    """Return notification float config from env, then local settings."""
+
+    raw_value = _env_value(name)
+    if raw_value is not None and raw_value.strip():
+        try:
+            return float(raw_value)
+        except ValueError:
+            return default
+
+    try:
+        return float(_LOCAL_NOTIFICATION_SETTINGS.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _notification_int(name: str, default: int) -> int:
+    """Return notification integer config from env, then local settings."""
+
+    raw_value = _env_value(name)
+    if raw_value is not None and raw_value.strip():
+        try:
+            return int(raw_value)
+        except ValueError:
+            return default
+
+    try:
+        return int(_LOCAL_NOTIFICATION_SETTINGS.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _notification_bool(name: str, default: bool) -> bool:
+    """Return notification boolean config from env, then local settings."""
+
+    raw_value = _env_value(name)
+    if raw_value is not None and raw_value.strip():
+        return _parse_bool(raw_value, default)
+
+    return _parse_bool(_LOCAL_NOTIFICATION_SETTINGS.get(name, default), default)
+
+
+def _parse_bool(value: object, default: bool) -> bool:
+    """Parse common boolean config values."""
+
+    raw_value = str(value).strip().lower()
     if raw_value in {"1", "true", "yes", "on"}:
         return True
     if raw_value in {"0", "false", "no", "off"}:
@@ -68,26 +146,38 @@ PRINTER_EXTRA_HEADERS_JSON = _env_string("PRINTER_EXTRA_HEADERS_JSON", "")
 
 SIMULATED_ACTION = PRINTER_ACTION
 
-NOTIFICATIONS_ENABLED = _env_bool("NOTIFICATIONS_ENABLED", False)
-NOTIFICATION_TIMEOUT_SECONDS = _env_float("NOTIFICATION_TIMEOUT_SECONDS", 5.0)
-WINDOWS_NOTIFICATIONS_ENABLED = _env_bool("WINDOWS_NOTIFICATIONS_ENABLED", False)
-WINDOWS_NOTIFICATION_APP_NAME = _env_string(
+NOTIFICATIONS_ENABLED = _notification_bool("NOTIFICATIONS_ENABLED", False)
+NOTIFICATION_TIMEOUT_SECONDS = _notification_float(
+    "NOTIFICATION_TIMEOUT_SECONDS",
+    5.0,
+)
+WINDOWS_NOTIFICATIONS_ENABLED = _notification_bool(
+    "WINDOWS_NOTIFICATIONS_ENABLED",
+    False,
+)
+WINDOWS_NOTIFICATION_APP_NAME = _notification_string(
     "WINDOWS_NOTIFICATION_APP_NAME",
     "PrintSentinel",
 )
-TELEGRAM_NOTIFICATIONS_ENABLED = _env_bool("TELEGRAM_NOTIFICATIONS_ENABLED", False)
-TELEGRAM_BOT_TOKEN = _env_string("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID = _env_string("TELEGRAM_CHAT_ID", "")
-TELEGRAM_SEND_SCREENSHOT = _env_bool("TELEGRAM_SEND_SCREENSHOT", True)
-EMAIL_NOTIFICATIONS_ENABLED = _env_bool("EMAIL_NOTIFICATIONS_ENABLED", False)
-SMTP_HOST = _env_string("SMTP_HOST", "")
-SMTP_PORT = _env_int("SMTP_PORT", 465)
-SMTP_SECURITY = _env_string("SMTP_SECURITY", "ssl")
-SMTP_USERNAME = _env_string("SMTP_USERNAME", "")
-SMTP_PASSWORD = _env_string("SMTP_PASSWORD", "")
-EMAIL_FROM = _env_string("EMAIL_FROM", "")
-EMAIL_TO = _env_string("EMAIL_TO", "")
-EMAIL_SEND_SCREENSHOT = _env_bool("EMAIL_SEND_SCREENSHOT", True)
+TELEGRAM_NOTIFICATIONS_ENABLED = _notification_bool(
+    "TELEGRAM_NOTIFICATIONS_ENABLED",
+    False,
+)
+TELEGRAM_BOT_TOKEN = _notification_string("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = _notification_string("TELEGRAM_CHAT_ID", "")
+TELEGRAM_SEND_SCREENSHOT = _notification_bool("TELEGRAM_SEND_SCREENSHOT", True)
+EMAIL_NOTIFICATIONS_ENABLED = _notification_bool(
+    "EMAIL_NOTIFICATIONS_ENABLED",
+    False,
+)
+SMTP_HOST = _notification_string("SMTP_HOST", "")
+SMTP_PORT = _notification_int("SMTP_PORT", 465)
+SMTP_SECURITY = _notification_string("SMTP_SECURITY", "ssl")
+SMTP_USERNAME = _notification_string("SMTP_USERNAME", "")
+SMTP_PASSWORD = _notification_string("SMTP_PASSWORD", "")
+EMAIL_FROM = _notification_string("EMAIL_FROM", "")
+EMAIL_TO = _notification_string("EMAIL_TO", "")
+EMAIL_SEND_SCREENSHOT = _notification_bool("EMAIL_SEND_SCREENSHOT", True)
 
 WINDOW_NAME = "PrintSentinel"
 STATUS_MONITORING = "STATUS: MONITORING"

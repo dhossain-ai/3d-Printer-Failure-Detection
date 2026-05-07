@@ -79,7 +79,7 @@ class EmailProvider:
             missing_fields.append("SMTP host")
         if self._smtp_port <= 0:
             missing_fields.append("SMTP port")
-        if self._smtp_security not in {"ssl", "starttls"}:
+        if self._smtp_security not in {"ssl", "starttls", "none"}:
             missing_fields.append("SMTP security")
         if not self._username:
             missing_fields.append("SMTP username")
@@ -136,7 +136,8 @@ class EmailProvider:
             self._smtp_port,
             timeout=self._timeout_seconds,
         ) as smtp:
-            smtp.starttls(context=context)
+            if self._smtp_security == "starttls":
+                smtp.starttls(context=context)
             smtp.login(self._username, self._password)
             smtp.send_message(message)
 
