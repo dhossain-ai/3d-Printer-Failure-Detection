@@ -35,6 +35,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const cameraContainer = document.getElementById("camera-container");
     const configDevice = document.getElementById("config-device");
 
+    // AI monitoring elements
+    const btnCamRaw = document.getElementById("btn-cam-raw");
+    const btnCamAi = document.getElementById("btn-cam-ai");
+    const btnAiStart = document.getElementById("btn-ai-start");
+    const btnAiStop = document.getElementById("btn-ai-stop");
+    let showingAiStream = false;
+    let rawCameraHtml = "";
+    let aiStatusInterval = null;
+
     function showError(msg) {
         elError.textContent = msg;
         setTimeout(() => { elError.textContent = ""; }, 5000);
@@ -63,7 +72,10 @@ document.addEventListener("DOMContentLoaded", () => {
             configDevice.textContent = config.model_device;
 
             if (config.camera_configured && config.printer_camera_url) {
-                cameraContainer.innerHTML = `<img src="${config.printer_camera_url}" alt="Printer Camera Stream">`;
+                rawCameraHtml = `<img src="${config.printer_camera_url}" alt="Printer Camera Stream">`;
+                if (!showingAiStream) {
+                    cameraContainer.innerHTML = rawCameraHtml;
+                }
             }
 
             // Update new config fields
@@ -259,11 +271,93 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    // AI Start / Stop
+    if (btnAiStart) {
+        btnAiStart.addEventListener("click", async () => {
+            try {
+                const res = await fetch("/api/ai/start", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({})});
+                const data = await res.json();
+                if (!res.ok) {
+                    showError(data.detail || "Failed to start AI monitoring");
+                    return;
+                }
+                btnAiStart.disabled = true;
+                btnAiStop.disabled = false;
+                // Auto-switch to AI stream
+                showingAiStream = true;
+                cameraContainer.innerHTML = `<img src="/api/ai/stream" alt="AI Stream">`;
+                btnCamAi && (btnCamAi.classList.add("active-tab"));
+                btnCamRaw && (btnCamRaw.classList.remove("active-tab"));
+                // Poll AI status
+                if (!aiStatusInterval) aiStatusInterval = setInterval(loadAiStatus, 1500);
+            } catch (e) {
+                showError(e.message);
+            }
+        });
+    }
+
+    if (btnAiStop) {
+        btnAiStop.addEventListener("click", async () => {
+            try {
+                await fetch("/api/ai/stop", {method: "POST"});
+                btnAiStart.disabled = false;
+                btnAiStop.disabled = true;
+                showingAiStream = false;
+                if (rawCameraHtml) cameraContainer.innerHTML = rawCameraHtml;
+                btnCamRaw && (btnCamRaw.classList.add("active-tab"));
+                btnCamAi && (btnCamAi.classList.remove("active-tab"));
+                if (aiStatusInterval) { clearInterval(aiStatusInterval); aiStatusInterval = null; }
+            } catch (e) {
+                showError(e.message);
+            }
+        });
+    }
+
+    // Camera tab toggle
+    if (btnCamRaw) {
+        btnCamRaw.addEventListener("click", () => {
+            showingAiStream = false;
+            if (rawCameraHtml) cameraContainer.innerHTML = rawCameraHtml;
+            btnCamRaw.classList.add("active-tab");
+            if (btnCamAi) btnCamAi.classList.remove("active-tab");
+        });
+    }
+    if (btnCamAi) {
+        btnCamAi.addEventListener("click", () => {
+            showingAiStream = true;
+            cameraContainer.innerHTML = `<img src="/api/ai/stream" alt="AI Stream">`;
+            btnCamAi.classList.add("active-tab");
+            if (btnCamRaw) btnCamRaw.classList.remove("active-tab");
+        });
+    }
+
+    async function loadAiStatus() {
+        try {
+            const res = await fetch("/api/ai/status");
+            const s = await res.json();
+            const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+            set("ai-running", s.running ? "Running" : "Stopped");
+            set("ai-frames", s.frames_processed);
+            set("ai-label", s.last_detection_label || "--");
+            set("ai-confidence", s.last_detection_confidence ? s.last_detection_confidence.toFixed(2) : "--");
+            set("ai-fail-frames", s.fail_frame_count);
+            set("ai-confirmed", s.confirmed_failure ? "YES ⚠" : "No");
+            set("ai-last-error", s.last_error || "--");
+
+            // Sync button state with server truth
+            if (!s.running && btnAiStart) { btnAiStart.disabled = false; }
+            if (!s.running && btnAiStop) { btnAiStop.disabled = true; }
+        } catch (e) {
+            console.error("AI status error", e);
+        }
+    }
+
     // Init
     loadConfig().then(() => {
         updateStatus();
         loadEvents();
         loadNotifications();
+        loadAiStatus();
         setInterval(updateStatus, 3000);
     });
 });

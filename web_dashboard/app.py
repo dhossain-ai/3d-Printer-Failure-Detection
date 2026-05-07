@@ -188,3 +188,94 @@ def get_recent_notifications():
     notifications_path = config.LOGS_DIR / "notifications.csv"
     notifications = read_recent_csv(notifications_path)
     return {"notifications": notifications}
+
+
+# ---------------------------------------------------------------------------
+# AI Monitoring endpoints
+# ---------------------------------------------------------------------------
+
+from fastapi.responses import StreamingResponse
+from web_dashboard.monitoring_service import get_service
+import time
+
+
+class AiStartRequest(BaseModel):
+    camera_url: str = ""
+    camera_type: str = "stream"
+
+
+@app.post("/api/ai/start")
+def ai_start(req: AiStartRequest):
+    """Start background AI monitoring. Rejects if already running."""
+    service = get_service()
+    camera_url = req.camera_url.strip() or config.PRINTER_CAMERA_URL
+    camera_type = req.camera_type or config.PRINTER_CAMERA_TYPE
+    error = service.start(camera_url=camera_url, camera_type=camera_type)
+    if error:
+        raise HTTPException(status_code=409, detail=error)
+    return {"success": True, "message": "AI monitoring started"}
+
+
+@app.post("/api/ai/stop")
+def ai_stop():
+    """Stop the background AI monitoring thread."""
+    service = get_service()
+    service.stop()
+    return {"success": True, "message": "AI monitoring stopped"}
+
+
+@app.get("/api/ai/status")
+def ai_status():
+    """Return current AI monitoring state."""
+    return get_service().get_status()
+
+
+def _mjpeg_generator():
+    """Yield MJPEG frames from the monitoring service."""
+    service = get_service()
+    placeholder = _placeholder_jpeg()
+    while True:
+        frame = service.get_latest_frame_jpeg()
+        if frame is None:
+            frame = placeholder
+        yield (
+            b"--frame\r\n"
+            b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
+        )
+        time.sleep(0.05)
+
+
+def _placeholder_jpeg() -> bytes:
+    """Return a tiny 1x1 grey JPEG as a placeholder when no frame is ready."""
+    try:
+        import cv2
+        import numpy as np
+        img = np.full((240, 320, 3), 50, dtype=np.uint8)
+        cv2.putText(img, "AI monitoring stopped", (30, 120),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 200), 2, cv2.LINE_AA)
+        _, buf = cv2.imencode(".jpg", img)
+        return buf.tobytes()
+    except Exception:
+        # Minimal valid 1x1 grey JPEG if cv2 is not available
+        return (
+            b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"
+            b"\xff\xdb\x00C\x00\x08\x06\x06\x07\x06\x05\x08\x07\x07\x07\t\t\x08\n"
+            b"\x0c\x14\r\x0c\x0b\x0b\x0c\x19\x12\x13\x0f\x14\x1d\x1a\x1f\x1e\x1d"
+            b"\x1a\x1c\x1c $.' \",#\x1c\x1c(7),01444\x1f'9=82<.342\x1e\x00"
+            b"\xff\xc0\x00\x0b\x08\x00\x01\x00\x01\x01\x01\x11\x00\xff\xc4\x00\x1f"
+            b"\x00\x00\x01\x05\x01\x01\x01\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00"
+            b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\xff\xc4\x00\xb5\x10\x00"
+            b"\x02\x01\x03\x03\x02\x04\x03\x05\x05\x04\x04\x00\x00\x01}\x01\x02\x03"
+            b"\x00\x04\x11\x05\x12!1A\x06\x13Qa\x07\"q\x142\x81\x91\xa1\x08#B\xb1"
+            b"\xc1\x15R\xd1\xf0$3br\x82\t\n\x16\x17\x18\x19\x1a%&'()*456789:CDEFG"
+            b"HIJKLMNOPQRSTUVWXYZ\xff\xda\x00\x08\x01\x01\x00\x00?\x00\xfb\x03\xff\xd9"
+        )
+
+
+@app.get("/api/ai/stream")
+def ai_stream():
+    """MJPEG annotated camera stream from the AI monitoring service."""
+    return StreamingResponse(
+        _mjpeg_generator(),
+        media_type="multipart/x-mixed-replace; boundary=frame",
+    )

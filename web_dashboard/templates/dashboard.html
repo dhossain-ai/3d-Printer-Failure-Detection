@@ -55,9 +55,52 @@
         <!-- Camera Panel -->
         <section class="card camera-card">
             <h2>Camera Feed</h2>
+            <div style="display:flex;gap:10px;margin-bottom:8px;">
+                <button id="btn-cam-raw" class="btn btn-sm active-tab">Raw Camera</button>
+                <button id="btn-cam-ai" class="btn btn-sm">AI Processed</button>
+            </div>
             <div class="camera-container" id="camera-container">
                 <div id="camera-placeholder" class="placeholder">
                     Camera URL not configured.
+                </div>
+            </div>
+        </section>
+
+        <!-- AI Monitoring Card -->
+        <section class="card ai-control-card">
+            <h2>AI Monitoring</h2>
+            <div style="display:flex;gap:8px;margin-bottom:10px;">
+                <button id="btn-ai-start" class="btn" style="background-color:#1a7a3a;">Start AI Monitoring</button>
+                <button id="btn-ai-stop" class="btn" style="background-color:#555;" disabled>Stop AI Monitoring</button>
+            </div>
+            <div class="status-grid" id="ai-status-grid">
+                <div class="status-item">
+                    <span class="label">Status:</span>
+                    <span id="ai-running" class="value">Stopped</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Frames Processed:</span>
+                    <span id="ai-frames" class="value">0</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Last Detection:</span>
+                    <span id="ai-label" class="value">--</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Confidence:</span>
+                    <span id="ai-confidence" class="value">--</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Fail Frames:</span>
+                    <span id="ai-fail-frames" class="value">0</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Confirmed Failure:</span>
+                    <span id="ai-confirmed" class="value">No</span>
+                </div>
+                <div class="status-item" style="grid-column:1/-1;">
+                    <span class="label">Last Error:</span>
+                    <span id="ai-last-error" class="value" style="color:#e55;word-break:break-all;">--</span>
                 </div>
             </div>
         </section>

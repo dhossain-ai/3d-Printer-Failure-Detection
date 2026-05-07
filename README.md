@@ -582,7 +582,34 @@ Safety Notes:
 - **Test first**: Use dummy prints or "air prints" to verify the pause/stop behavior before relying on it for expensive models.
 - **Monitoring loop**: Ensure the monitoring loop is running and `PRINTER_ACTION` is set to your preferred safe response.
 
+## Dashboard AI Monitoring
+
+The dashboard includes an integrated YOLO-based AI monitoring panel that runs the same detection model in the background, serving an MJPEG annotated stream you can watch in the browser.
+
+**Raw camera vs AI processed stream:**
+- **Raw Camera**: The direct MJPEG stream from the printer (e.g. `PRINTER_CAMERA_URL`). No detection overlay, zero additional CPU/GPU load.
+- **AI Processed**: Frames are passed through the YOLO detector and bounding-box annotations are added. Detection stats (fail frames, confidence, label, confirmed failure) update live.
+
+**How to enable:**
+
+```powershell
+$env:PRINTSENTINEL_PRINTER_CAMERA_URL="http://192.168.137.211:8080/?action=stream"
+$env:PRINTSENTINEL_PRINTER_CAMERA_TYPE="stream"
+$env:PRINTSENTINEL_MODEL_DEVICE="cuda"   # or cpu
+python tools/run_dashboard.py
+```
+
+Then open `http://127.0.0.1:8001` and click **Start AI Monitoring**. The camera panel will switch to the annotated stream and detection stats will update every 1.5 seconds.
+
+Notes:
+- **Manual start only**: AI monitoring does not start automatically on server startup. You must click the button.
+- **Single thread**: Only one monitoring session may run at once; starting again while running is rejected.
+- **Local only**: The MJPEG stream is served locally and should not be exposed to the internet.
+- **Resource intensive**: YOLO inference on a live stream consumes significant CPU/GPU. Use `cuda` for best performance.
+- **Action integration**: In this phase the dashboard monitoring is detection-only and does not trigger printer pause/stop or notifications to avoid double-firing alongside the main OpenCV runner. This can be added in a future phase.
+
 ## Screenshots
+
 
 Add portfolio screenshots here after running the app:
 
