@@ -56,6 +56,7 @@ PrintSentinel is a Python MVP for camera/video-based 3D print failure detection.
 - Optional Windows desktop toast provider using `windows-toasts` when installed
 - Optional Telegram bot alerts with text or screenshot photo messages
 - Optional SMTP email alerts with text or screenshot attachments
+- Local Tkinter notification settings window with save and test controls
 - Environment flags for enabling notifications and Windows desktop alerts
 
 ## Folder Structure
@@ -220,6 +221,24 @@ The token is sent as the configured header value. Include prefixes such as `Bear
 Notifications are disabled by default. When enabled, PrintSentinel sends alerts after a confirmed failure screenshot, CSV row, and terminal warning are created. Notification failures are logged as warnings and never block the configured printer stop or pause action.
 
 Never commit bot tokens, SMTP passwords, chat IDs, or local notification settings. Use environment variables or a local `.env` workflow outside version control.
+
+### Notification Settings UI
+
+The source selection window includes a `Notification Settings` button. It opens a local Tkinter settings window for Windows, Telegram, and SMTP email notifications. The window can save settings and send a test notification through the currently enabled providers.
+
+Local UI settings are saved to:
+
+```text
+config/local_notification_settings.json
+```
+
+This file is ignored by Git. For this local MVP, the file stores notification secrets in plaintext so the desktop UI can remain simple. Production deployments should use environment variables, a secret manager, or encrypted local storage instead.
+
+Notification config precedence is:
+
+1. Environment variables, including `PRINTSENTINEL_`-prefixed names.
+2. `config/local_notification_settings.json`.
+3. Defaults in `config.py`.
 
 Enable Windows desktop notifications:
 
