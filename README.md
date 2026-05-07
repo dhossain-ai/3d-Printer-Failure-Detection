@@ -86,10 +86,13 @@ printer_fail_demo/
 ├── session_summary.py
 ├── sources.py
 ├── utils.py
+├── tools/
+│   └── discover_printer.py
 ├── docs/
 │   └── architecture.md
 ├── tests/
 │   ├── test_actions.py
+│   ├── test_discover_printer.py
 │   ├── test_notifications.py
 │   ├── test_printer_controller.py
 │   ├── test_runner.py
@@ -220,6 +223,24 @@ python main.py
 ```
 
 The token is sent as the configured header value. Include prefixes such as `Bearer` in the token value if your endpoint expects them.
+
+## Real Printer Discovery
+
+Use the standalone discovery utility to identify which read-only LAN endpoints are available before enabling any real camera or printer-control integration.
+
+```bash
+python tools/discover_printer.py 192.168.12.236
+```
+
+The utility only sends HTTP `GET` probes and does not pause, stop, move, heat, extrude, or send G-code. Stream endpoints are opened with short timeouts, only a tiny initial sample is read, and the response is closed immediately.
+
+Useful results include:
+
+- `moonraker_api`: a Moonraker API endpoint responded on port `7125`
+- `camera_stream`: an MJPEG camera stream endpoint was found
+- `camera_snapshot`: a still-image camera endpoint was found
+
+The printer IP can change if your router DHCP lease changes. Check the printer screen or reserve the IP in your router before relying on the same address later.
 
 ## Notifications
 
