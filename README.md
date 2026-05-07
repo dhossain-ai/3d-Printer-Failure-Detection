@@ -54,6 +54,8 @@ PrintSentinel is a Python MVP for camera/video-based 3D print failure detection.
 - Confirmed-failure notifications routed through `actions.py`
 - Provider manager that isolates notification errors from monitoring and printer control
 - Optional Windows desktop toast provider using `windows-toasts` when installed
+- Optional Telegram bot alerts with text or screenshot photo messages
+- Optional SMTP email alerts with text or screenshot attachments
 - Environment flags for enabling notifications and Windows desktop alerts
 
 ## Folder Structure
@@ -73,6 +75,8 @@ printer_fail_demo/
 │   ├── models.py
 │   └── providers/
 │       ├── base.py
+│       ├── email.py
+│       ├── telegram.py
 │       └── windows_toast.py
 ├── session_summary.py
 ├── sources.py
@@ -143,8 +147,22 @@ PRINTER_API_TOKEN = ""
 PRINTER_AUTH_HEADER_NAME = "Authorization"
 PRINTER_EXTRA_HEADERS_JSON = ""
 NOTIFICATIONS_ENABLED = False
+NOTIFICATION_TIMEOUT_SECONDS = 5.0
 WINDOWS_NOTIFICATIONS_ENABLED = False
 WINDOWS_NOTIFICATION_APP_NAME = "PrintSentinel"
+TELEGRAM_NOTIFICATIONS_ENABLED = False
+TELEGRAM_BOT_TOKEN = ""
+TELEGRAM_CHAT_ID = ""
+TELEGRAM_SEND_SCREENSHOT = True
+EMAIL_NOTIFICATIONS_ENABLED = False
+SMTP_HOST = ""
+SMTP_PORT = 465
+SMTP_SECURITY = "ssl"
+SMTP_USERNAME = ""
+SMTP_PASSWORD = ""
+EMAIL_FROM = ""
+EMAIL_TO = ""
+EMAIL_SEND_SCREENSHOT = True
 ```
 
 Use `PRINTER_ACTION = "pause"` to request a pause instead of a stop.
@@ -201,6 +219,8 @@ The token is sent as the configured header value. Include prefixes such as `Bear
 
 Notifications are disabled by default. When enabled, PrintSentinel sends alerts after a confirmed failure screenshot, CSV row, and terminal warning are created. Notification failures are logged as warnings and never block the configured printer stop or pause action.
 
+Never commit bot tokens, SMTP passwords, chat IDs, or local notification settings. Use environment variables or a local `.env` workflow outside version control.
+
 Enable Windows desktop notifications:
 
 ```powershell
@@ -212,6 +232,39 @@ python main.py
 ```
 
 On non-Windows systems, the Windows provider reports a safe skip. If `windows-toasts` is not installed on Windows, PrintSentinel reports a warning and keeps monitoring.
+
+Enable Telegram notifications:
+
+```bash
+export PRINTSENTINEL_NOTIFICATIONS_ENABLED=true
+export PRINTSENTINEL_TELEGRAM_NOTIFICATIONS_ENABLED=true
+export PRINTSENTINEL_TELEGRAM_BOT_TOKEN="replace-with-bot-token"
+export PRINTSENTINEL_TELEGRAM_CHAT_ID="replace-with-chat-id"
+export PRINTSENTINEL_TELEGRAM_SEND_SCREENSHOT=true
+export PRINTSENTINEL_NOTIFICATION_TIMEOUT_SECONDS=5
+python main.py
+```
+
+Telegram text alerts use `sendMessage`. If `TELEGRAM_SEND_SCREENSHOT` is true and a screenshot exists, PrintSentinel sends the alert with `sendPhoto`.
+
+Enable Gmail SMTP email notifications:
+
+```bash
+export PRINTSENTINEL_NOTIFICATIONS_ENABLED=true
+export PRINTSENTINEL_EMAIL_NOTIFICATIONS_ENABLED=true
+export PRINTSENTINEL_SMTP_HOST=smtp.gmail.com
+export PRINTSENTINEL_SMTP_PORT=465
+export PRINTSENTINEL_SMTP_SECURITY=ssl
+export PRINTSENTINEL_SMTP_USERNAME="your-address@gmail.com"
+export PRINTSENTINEL_SMTP_PASSWORD="replace-with-gmail-app-password"
+export PRINTSENTINEL_EMAIL_FROM="your-address@gmail.com"
+export PRINTSENTINEL_EMAIL_TO="first@example.com,second@example.com"
+export PRINTSENTINEL_EMAIL_SEND_SCREENSHOT=true
+export PRINTSENTINEL_NOTIFICATION_TIMEOUT_SECONDS=5
+python main.py
+```
+
+For Gmail, use an app password rather than your normal account password. `SMTP_SECURITY=starttls` with port `587` is also supported.
 
 ## Session Summary
 
@@ -253,7 +306,7 @@ Add portfolio screenshots here after running the app:
 pytest -q
 ```
 
-The test suite covers safe filename generation, cooldown behavior, CSV row creation, event log writing, simulated action routing, controller selection, HTTP request routing, notification handling, confirmed failure orchestration, and cooldown suppression. It does not require a webcam, live OpenCV window, YOLO model execution, or real printer.
+The test suite covers safe filename generation, cooldown behavior, CSV row creation, event log writing, simulated action routing, controller selection, HTTP request routing, notification handling, confirmed failure orchestration, and cooldown suppression. Notification tests mock Telegram requests and SMTP sessions, so they do not make real network calls. The suite does not require a webcam, live OpenCV window, YOLO model execution, or real printer.
 
 HTTP controller tests use mocked request sessions and do not require a real printer.
 
