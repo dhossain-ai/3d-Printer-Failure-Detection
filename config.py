@@ -53,6 +53,15 @@ def _env_bool(name: str, default: bool) -> bool:
     return _parse_bool(raw_value, default)
 
 
+def _env_choice(name: str, default: str, allowed_values: tuple[str, ...]) -> str:
+    """Return a lower-case environment choice or a safe default."""
+
+    raw_value = _env_string(name, default).lower()
+    if raw_value in allowed_values:
+        return raw_value
+    return default
+
+
 def _notification_string(name: str, default: str) -> str:
     """Return notification config from env, then local settings, then default."""
 
@@ -143,6 +152,12 @@ PRINTER_REQUEST_TIMEOUT_SECONDS = _env_float("PRINTER_REQUEST_TIMEOUT_SECONDS", 
 PRINTER_API_TOKEN = _env_string("PRINTER_API_TOKEN", "")
 PRINTER_AUTH_HEADER_NAME = _env_string("PRINTER_AUTH_HEADER_NAME", "Authorization")
 PRINTER_EXTRA_HEADERS_JSON = _env_string("PRINTER_EXTRA_HEADERS_JSON", "")
+PRINTER_CAMERA_URL = _env_string("PRINTER_CAMERA_URL", "")
+PRINTER_CAMERA_TYPE = _env_choice(
+    "PRINTER_CAMERA_TYPE",
+    "stream",
+    ("stream", "snapshot"),
+)
 
 SIMULATED_ACTION = PRINTER_ACTION
 

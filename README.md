@@ -92,10 +92,12 @@ printer_fail_demo/
 │   └── architecture.md
 ├── tests/
 │   ├── test_actions.py
+│   ├── test_config.py
 │   ├── test_discover_printer.py
 │   ├── test_notifications.py
 │   ├── test_printer_controller.py
 │   ├── test_runner.py
+│   ├── test_sources.py
 │   └── test_utils.py
 ├── models/
 │   └── model.pt
@@ -154,6 +156,8 @@ PRINTER_REQUEST_TIMEOUT_SECONDS = 3
 PRINTER_API_TOKEN = ""
 PRINTER_AUTH_HEADER_NAME = "Authorization"
 PRINTER_EXTRA_HEADERS_JSON = ""
+PRINTER_CAMERA_URL = ""
+PRINTER_CAMERA_TYPE = "stream"
 NOTIFICATIONS_ENABLED = False
 NOTIFICATION_TIMEOUT_SECONDS = 5.0
 NOTIFICATION_MAX_SCREENSHOT_MB = 5.0
@@ -241,6 +245,41 @@ Useful results include:
 - `camera_snapshot`: a still-image camera endpoint was found
 
 The printer IP can change if your router DHCP lease changes. Check the printer screen or reserve the IP in your router before relying on the same address later.
+
+## Printer Camera Source
+
+PrintSentinel can use a real printer camera as an input source without enabling printer-control commands. The Creality K1C discovery step found camera endpoints on port `8080`, with MJPEG stream and snapshot modes commonly exposed as:
+
+- `http://<printer-ip>:8080/?action=stream`
+- `http://<printer-ip>:8080/?action=snapshot`
+
+Stream mode uses the normal OpenCV `VideoCapture` path and is the default:
+
+```bash
+export PRINTSENTINEL_PRINTER_CAMERA_URL="http://192.168.137.211:8080/?action=stream"
+export PRINTSENTINEL_PRINTER_CAMERA_TYPE=stream
+python main.py
+```
+
+Snapshot mode polls an image URL with HTTP timeouts and a modest polling interval:
+
+```bash
+export PRINTSENTINEL_PRINTER_CAMERA_URL="http://192.168.137.211:8080/?action=snapshot"
+export PRINTSENTINEL_PRINTER_CAMERA_TYPE=snapshot
+python main.py
+```
+
+On Windows PowerShell:
+
+```powershell
+$env:PRINTSENTINEL_PRINTER_CAMERA_URL="http://192.168.137.211:8080/?action=stream"
+$env:PRINTSENTINEL_PRINTER_CAMERA_TYPE="stream"
+python main.py
+```
+
+Then choose `Printer camera` in the source selection window. If `PRINTSENTINEL_PRINTER_CAMERA_URL` is not set, the UI prompts for a URL.
+
+The printer IP can change when using hotspot or router DHCP. If the camera stops opening, check the printer screen or reserve the address in your router.
 
 ## Notifications
 

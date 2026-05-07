@@ -3,6 +3,7 @@
 import tkinter as tk
 from tkinter import messagebox, simpledialog, ttk
 
+from config import PRINTER_CAMERA_TYPE, PRINTER_CAMERA_URL
 from notifications.settings import (
     LOCAL_NOTIFICATION_SETTINGS_PATH,
     load_notification_settings,
@@ -10,7 +11,13 @@ from notifications.settings import (
     send_test_notification,
     validate_notification_settings,
 )
-from sources import VideoSource, mobile_camera_source, sample_video_source, webcam_source
+from sources import (
+    VideoSource,
+    mobile_camera_source,
+    printer_camera_source,
+    sample_video_source,
+    webcam_source,
+)
 
 
 class SourceSelectionUI:
@@ -21,7 +28,7 @@ class SourceSelectionUI:
 
         self._root = tk.Tk()
         self._root.title("PrintSentinel")
-        self._root.geometry("420x310")
+        self._root.geometry("420x355")
         self._root.resizable(False, False)
         self._selected_source: VideoSource | None = None
 
@@ -70,6 +77,12 @@ class SourceSelectionUI:
         ).pack(pady=6)
         tk.Button(
             self._root,
+            text="Printer camera",
+            width=26,
+            command=self._select_printer_camera,
+        ).pack(pady=6)
+        tk.Button(
+            self._root,
             text="Notification Settings",
             width=26,
             command=self._open_notification_settings,
@@ -97,6 +110,24 @@ class SourceSelectionUI:
         )
         if url:
             self._selected_source = mobile_camera_source(url)
+            self._root.destroy()
+
+    def _select_printer_camera(self) -> None:
+        """Select the configured printer camera or prompt for its URL."""
+
+        url = PRINTER_CAMERA_URL
+        if not url:
+            url = simpledialog.askstring(
+                "Printer Camera URL",
+                (
+                    "Enter printer camera URL:\n"
+                    "Example: http://<printer-ip>:8080/?action=stream"
+                ),
+                parent=self._root,
+            )
+
+        if url:
+            self._selected_source = printer_camera_source(url, PRINTER_CAMERA_TYPE)
             self._root.destroy()
 
     def _open_notification_settings(self) -> None:
