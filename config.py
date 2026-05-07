@@ -22,6 +22,16 @@ def _env_float(name: str, default: float) -> float:
         return default
 
 
+def _env_int(name: str, default: int) -> int:
+    """Return an integer environment variable value or a safe default."""
+
+    raw_value = _env_string(name, str(default))
+    try:
+        return int(raw_value)
+    except ValueError:
+        return default
+
+
 def _env_bool(name: str, default: bool) -> bool:
     """Return a boolean environment variable value or a safe default."""
 
@@ -59,11 +69,25 @@ PRINTER_EXTRA_HEADERS_JSON = _env_string("PRINTER_EXTRA_HEADERS_JSON", "")
 SIMULATED_ACTION = PRINTER_ACTION
 
 NOTIFICATIONS_ENABLED = _env_bool("NOTIFICATIONS_ENABLED", False)
+NOTIFICATION_TIMEOUT_SECONDS = _env_float("NOTIFICATION_TIMEOUT_SECONDS", 5.0)
 WINDOWS_NOTIFICATIONS_ENABLED = _env_bool("WINDOWS_NOTIFICATIONS_ENABLED", False)
 WINDOWS_NOTIFICATION_APP_NAME = _env_string(
     "WINDOWS_NOTIFICATION_APP_NAME",
     "PrintSentinel",
 )
+TELEGRAM_NOTIFICATIONS_ENABLED = _env_bool("TELEGRAM_NOTIFICATIONS_ENABLED", False)
+TELEGRAM_BOT_TOKEN = _env_string("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = _env_string("TELEGRAM_CHAT_ID", "")
+TELEGRAM_SEND_SCREENSHOT = _env_bool("TELEGRAM_SEND_SCREENSHOT", True)
+EMAIL_NOTIFICATIONS_ENABLED = _env_bool("EMAIL_NOTIFICATIONS_ENABLED", False)
+SMTP_HOST = _env_string("SMTP_HOST", "")
+SMTP_PORT = _env_int("SMTP_PORT", 465)
+SMTP_SECURITY = _env_string("SMTP_SECURITY", "ssl")
+SMTP_USERNAME = _env_string("SMTP_USERNAME", "")
+SMTP_PASSWORD = _env_string("SMTP_PASSWORD", "")
+EMAIL_FROM = _env_string("EMAIL_FROM", "")
+EMAIL_TO = _env_string("EMAIL_TO", "")
+EMAIL_SEND_SCREENSHOT = _env_bool("EMAIL_SEND_SCREENSHOT", True)
 
 WINDOW_NAME = "PrintSentinel"
 STATUS_MONITORING = "STATUS: MONITORING"
