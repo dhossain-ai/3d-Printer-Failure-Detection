@@ -131,6 +131,7 @@ def _parse_bool(value: object, default: bool) -> bool:
 
 
 MODEL_PATH = BASE_DIR / "models" / "model.pt"
+MODEL_DEVICE = _env_choice("MODEL_DEVICE", "auto", ("auto", "cpu", "cuda", "0"))
 SAMPLE_VIDEO_PATH = BASE_DIR / "assets" / "demo.mp4"
 CAPTURES_DIR = BASE_DIR / "captures"
 LOGS_DIR = BASE_DIR / "logs"

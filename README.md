@@ -93,6 +93,7 @@ printer_fail_demo/
 ├── tests/
 │   ├── test_actions.py
 │   ├── test_config.py
+│   ├── test_detector.py
 │   ├── test_discover_printer.py
 │   ├── test_notifications.py
 │   ├── test_printer_controller.py
@@ -144,6 +145,7 @@ Runtime settings live in `config.py`.
 
 ```python
 CONFIDENCE_THRESHOLD = 0.35
+MODEL_DEVICE = "auto"
 CONSECUTIVE_FAIL_FRAMES = 3
 ALERT_COOLDOWN_SECONDS = 20
 PRINTER_BACKEND = "simulated"
@@ -179,6 +181,33 @@ EMAIL_SEND_SCREENSHOT = True
 ```
 
 Use `PRINTER_ACTION = "pause"` to request a pause instead of a stop.
+
+## Model Device / GPU Troubleshooting
+
+Model inference device selection is explicit through `PRINTSENTINEL_MODEL_DEVICE`:
+
+```bash
+export PRINTSENTINEL_MODEL_DEVICE=auto
+python main.py
+```
+
+`auto` is the default and lets Ultralytics choose the device. To force CPU inference:
+
+```bash
+export PRINTSENTINEL_MODEL_DEVICE=cpu
+python main.py
+```
+
+To request GPU inference:
+
+```bash
+export PRINTSENTINEL_MODEL_DEVICE=cuda
+python main.py
+```
+
+`PRINTSENTINEL_MODEL_DEVICE=0` is also supported for GPU device `0`.
+
+If prediction fails with an error mentioning `torchvision::nms`, the CUDA backend, or an invalid device id, your local `torch` and `torchvision` builds may not match the installed CUDA runtime. Set `PRINTSENTINEL_MODEL_DEVICE=cpu` to keep monitoring on CPU, or install matching CUDA builds of both `torch` and `torchvision` before using GPU inference.
 
 ## Printer Backends
 
