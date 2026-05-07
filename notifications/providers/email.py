@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Sequence
 
 from notifications.models import FailureNotification, NotificationResult
+from notifications.screenshots import screenshot_within_limit
 
 
 class EmailProvider:
@@ -26,6 +27,7 @@ class EmailProvider:
         recipients: str | Sequence[str],
         send_screenshot: bool = True,
         timeout_seconds: float = 5.0,
+        max_screenshot_mb: float = 5.0,
     ) -> None:
         """Create an SMTP email notification provider."""
 
@@ -38,6 +40,7 @@ class EmailProvider:
         self._recipients = parse_email_recipients(recipients)
         self._send_screenshot = send_screenshot
         self._timeout_seconds = timeout_seconds
+        self._max_screenshot_mb = max_screenshot_mb
         self.destination_id = ",".join(self._recipients) or "email"
 
     def send_failure_alert(
@@ -146,8 +149,7 @@ class EmailProvider:
 
         return (
             self._send_screenshot
-            and screenshot_path is not None
-            and screenshot_path.exists()
+            and screenshot_within_limit(screenshot_path, self._max_screenshot_mb)
         )
 
     def _attach_screenshot(

@@ -2,7 +2,6 @@
 
 import csv
 import sys
-import threading
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -15,6 +14,8 @@ from config import (
     LOGS_DIR,
     PRINTER_ACTION,
 )
+from notifications.dispatcher import NotificationDispatcher
+from notifications.logging import safe_append_notification_results
 from notifications.manager import NotificationManager, build_enabled_providers
 from notifications.models import FailureNotification, NotificationResult
 from printer_controller import (
@@ -35,6 +36,8 @@ CSV_COLUMNS = (
     "action",
     "screenshot_path",
 )
+
+_NOTIFICATION_DISPATCHER = NotificationDispatcher()
 
 
 @dataclass(frozen=True)
@@ -186,16 +189,13 @@ def handle_confirmed_failure(
     )
 
 
-def dispatch_failure_notifications(event: FailureEvent) -> None:
+def dispatch_failure_notifications(
+    event: FailureEvent,
+    dispatcher: NotificationDispatcher = _NOTIFICATION_DISPATCHER,
+) -> None:
     """Dispatch notification alerts without blocking monitoring."""
 
-    thread = threading.Thread(
-        target=send_failure_notifications,
-        args=(event,),
-        name="printsentinel-notifications",
-        daemon=True,
-    )
-    thread.start()
+    dispatcher.dispatch(lambda: send_failure_notifications(event))
 
 
 def send_failure_notifications(event: FailureEvent) -> list[NotificationResult]:
@@ -225,6 +225,8 @@ def send_failure_notifications(event: FailureEvent) -> list[NotificationResult]:
                 ),
             )
         ]
+
+    safe_append_notification_results(notification, results)
 
     for result in results:
         if not result.success:

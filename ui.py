@@ -182,6 +182,12 @@ class NotificationSettingsWindow:
             "EMAIL_SEND_SCREENSHOT",
             "Send email screenshot",
         )
+        row = self._add_entry(
+            frame,
+            row,
+            "NOTIFICATION_MAX_SCREENSHOT_MB",
+            "Max screenshot MB",
+        )
         row = self._add_separator(frame, row)
 
         button_frame = tk.Frame(frame)

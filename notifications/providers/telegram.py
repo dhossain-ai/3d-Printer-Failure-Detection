@@ -6,6 +6,7 @@ from typing import Any
 import requests
 
 from notifications.models import FailureNotification, NotificationResult
+from notifications.screenshots import screenshot_within_limit
 
 TELEGRAM_API_BASE_URL = "https://api.telegram.org"
 
@@ -21,6 +22,7 @@ class TelegramProvider:
         chat_id: str,
         send_screenshot: bool = True,
         timeout_seconds: float = 5.0,
+        max_screenshot_mb: float = 5.0,
         session: Any | None = None,
     ) -> None:
         """Create a Telegram notification provider."""
@@ -29,6 +31,7 @@ class TelegramProvider:
         self._chat_id = chat_id.strip()
         self._send_screenshot = send_screenshot
         self._timeout_seconds = timeout_seconds
+        self._max_screenshot_mb = max_screenshot_mb
         self._session = session or requests
         self.destination_id = self._chat_id or "telegram"
 
@@ -122,8 +125,7 @@ class TelegramProvider:
 
         return (
             self._send_screenshot
-            and screenshot_path is not None
-            and screenshot_path.exists()
+            and screenshot_within_limit(screenshot_path, self._max_screenshot_mb)
         )
 
     def _api_url(self, method: str) -> str:

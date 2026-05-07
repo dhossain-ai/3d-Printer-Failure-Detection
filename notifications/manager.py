@@ -8,6 +8,7 @@ from config import (
     EMAIL_SEND_SCREENSHOT,
     EMAIL_TO,
     NOTIFICATIONS_ENABLED,
+    NOTIFICATION_MAX_SCREENSHOT_MB,
     NOTIFICATION_TIMEOUT_SECONDS,
     SMTP_HOST,
     SMTP_PASSWORD,
@@ -80,6 +81,7 @@ def build_enabled_providers(
     email_to: str = EMAIL_TO,
     email_send_screenshot: bool = EMAIL_SEND_SCREENSHOT,
     notification_timeout_seconds: float = NOTIFICATION_TIMEOUT_SECONDS,
+    notification_max_screenshot_mb: float = NOTIFICATION_MAX_SCREENSHOT_MB,
 ) -> list[NotificationProvider]:
     """Build notification providers enabled by configuration."""
 
@@ -96,6 +98,7 @@ def build_enabled_providers(
                 chat_id=telegram_chat_id,
                 send_screenshot=telegram_send_screenshot,
                 timeout_seconds=notification_timeout_seconds,
+                max_screenshot_mb=notification_max_screenshot_mb,
             )
         )
     if email_notifications_enabled:
@@ -110,6 +113,7 @@ def build_enabled_providers(
                 recipients=email_to,
                 send_screenshot=email_send_screenshot,
                 timeout_seconds=notification_timeout_seconds,
+                max_screenshot_mb=notification_max_screenshot_mb,
             )
         )
 

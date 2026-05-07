@@ -31,6 +31,7 @@ DEFAULT_LOCAL_NOTIFICATION_SETTINGS: dict[str, Any] = {
     "EMAIL_TO": "",
     "EMAIL_SEND_SCREENSHOT": True,
     "NOTIFICATION_TIMEOUT_SECONDS": 5.0,
+    "NOTIFICATION_MAX_SCREENSHOT_MB": 5.0,
 }
 
 _BOOL_KEYS = {
@@ -97,11 +98,15 @@ def normalize_notification_settings(settings: Mapping[str, Any]) -> dict[str, An
     normalized["NOTIFICATION_TIMEOUT_SECONDS"] = _coerce_float_or_original(
         normalized["NOTIFICATION_TIMEOUT_SECONDS"]
     )
+    normalized["NOTIFICATION_MAX_SCREENSHOT_MB"] = _coerce_float_or_original(
+        normalized["NOTIFICATION_MAX_SCREENSHOT_MB"]
+    )
 
     for key, value in normalized.items():
         if key not in _BOOL_KEYS and key not in {
             "SMTP_PORT",
             "NOTIFICATION_TIMEOUT_SECONDS",
+            "NOTIFICATION_MAX_SCREENSHOT_MB",
         }:
             normalized[key] = str(value).strip()
 
@@ -137,6 +142,10 @@ def validate_notification_settings(settings: Mapping[str, Any]) -> list[str]:
         if not parse_recipient_emails(normalized["EMAIL_TO"]):
             errors.append("At least one recipient email is required when email is enabled.")
 
+    max_screenshot_mb = normalized["NOTIFICATION_MAX_SCREENSHOT_MB"]
+    if not isinstance(max_screenshot_mb, (float, int)) or max_screenshot_mb <= 0:
+        errors.append("Notification max screenshot MB must be a positive number.")
+
     return errors
 
 
@@ -171,6 +180,10 @@ def build_provider_factory_kwargs(settings: Mapping[str, Any]) -> dict[str, Any]
         "email_send_screenshot": normalized["EMAIL_SEND_SCREENSHOT"],
         "notification_timeout_seconds": _safe_float(
             normalized["NOTIFICATION_TIMEOUT_SECONDS"],
+            5.0,
+        ),
+        "notification_max_screenshot_mb": _safe_float(
+            normalized["NOTIFICATION_MAX_SCREENSHOT_MB"],
             5.0,
         ),
     }

@@ -178,6 +178,10 @@ SMTP_PASSWORD = _notification_string("SMTP_PASSWORD", "")
 EMAIL_FROM = _notification_string("EMAIL_FROM", "")
 EMAIL_TO = _notification_string("EMAIL_TO", "")
 EMAIL_SEND_SCREENSHOT = _notification_bool("EMAIL_SEND_SCREENSHOT", True)
+NOTIFICATION_MAX_SCREENSHOT_MB = _notification_float(
+    "NOTIFICATION_MAX_SCREENSHOT_MB",
+    5.0,
+)
 
 WINDOW_NAME = "PrintSentinel"
 STATUS_MONITORING = "STATUS: MONITORING"

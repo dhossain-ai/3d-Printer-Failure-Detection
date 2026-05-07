@@ -349,6 +349,61 @@ def test_telegram_screenshot_send_uses_send_photo(tmp_path: Path) -> None:
     assert "photo" in session.posts[0]["files"]
 
 
+def test_telegram_missing_screenshot_falls_back_to_text(tmp_path: Path) -> None:
+    """Missing screenshots should fall back to Telegram sendMessage."""
+
+    session = FakeTelegramSession()
+    notification = make_notification()
+    notification = FailureNotification(
+        timestamp=notification.timestamp,
+        source=notification.source,
+        label=notification.label,
+        confidence=notification.confidence,
+        action=notification.action,
+        screenshot_path=tmp_path / "missing.jpg",
+    )
+
+    result = TelegramProvider(
+        bot_token="secret-token",
+        chat_id="123",
+        send_screenshot=True,
+        session=session,
+    ).send_failure_alert(notification)
+
+    assert result.success
+    assert session.posts[0]["url"].endswith("/sendMessage")
+    assert session.posts[0]["files"] is None
+
+
+def test_telegram_oversized_screenshot_falls_back_to_text(tmp_path: Path) -> None:
+    """Oversized screenshots should fall back to Telegram sendMessage."""
+
+    screenshot_path = tmp_path / "large.jpg"
+    screenshot_path.write_bytes(b"x" * 2048)
+    session = FakeTelegramSession()
+    notification = make_notification()
+    notification = FailureNotification(
+        timestamp=notification.timestamp,
+        source=notification.source,
+        label=notification.label,
+        confidence=notification.confidence,
+        action=notification.action,
+        screenshot_path=screenshot_path,
+    )
+
+    result = TelegramProvider(
+        bot_token="secret-token",
+        chat_id="123",
+        send_screenshot=True,
+        max_screenshot_mb=0.0001,
+        session=session,
+    ).send_failure_alert(notification)
+
+    assert result.success
+    assert session.posts[0]["url"].endswith("/sendMessage")
+    assert session.posts[0]["files"] is None
+
+
 def test_telegram_http_error_returns_failed_result() -> None:
     """Telegram HTTP errors should return failed results without leaking tokens."""
 
@@ -515,6 +570,112 @@ def test_email_attaches_screenshot_when_enabled(monkeypatch, tmp_path: Path) -> 
     assert any(part.get_filename() == "failure.jpg" for part in sent_messages[0].walk())
 
 
+def test_email_missing_screenshot_falls_back_to_text(monkeypatch, tmp_path: Path) -> None:
+    """Missing screenshots should not prevent text-only email alerts."""
+
+    sent_messages: list[object] = []
+
+    class FakeSMTP:
+        """SMTP SSL stand-in."""
+
+        def __init__(self, host, port, timeout, context):
+            """Ignore connection settings."""
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def login(self, username, password):
+            self.username = username
+
+        def send_message(self, message):
+            sent_messages.append(message)
+
+    notification = make_notification()
+    notification = FailureNotification(
+        timestamp=notification.timestamp,
+        source=notification.source,
+        label=notification.label,
+        confidence=notification.confidence,
+        action=notification.action,
+        screenshot_path=tmp_path / "missing.jpg",
+    )
+
+    monkeypatch.setattr("smtplib.SMTP_SSL", FakeSMTP)
+
+    result = EmailProvider(
+        smtp_host="smtp.example.com",
+        smtp_port=465,
+        smtp_security="ssl",
+        username="user",
+        password="secret-password",
+        sender="from@example.com",
+        recipients="one@example.com",
+        send_screenshot=True,
+    ).send_failure_alert(notification)
+
+    assert result.success
+    assert sent_messages[0].get_content_maintype() == "text"
+
+
+def test_email_oversized_screenshot_falls_back_to_text(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """Oversized screenshots should not be attached to email alerts."""
+
+    sent_messages: list[object] = []
+
+    class FakeSMTP:
+        """SMTP SSL stand-in."""
+
+        def __init__(self, host, port, timeout, context):
+            """Ignore connection settings."""
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def login(self, username, password):
+            self.username = username
+
+        def send_message(self, message):
+            sent_messages.append(message)
+
+    screenshot_path = tmp_path / "large.jpg"
+    screenshot_path.write_bytes(b"x" * 2048)
+    notification = make_notification()
+    notification = FailureNotification(
+        timestamp=notification.timestamp,
+        source=notification.source,
+        label=notification.label,
+        confidence=notification.confidence,
+        action=notification.action,
+        screenshot_path=screenshot_path,
+    )
+
+    monkeypatch.setattr("smtplib.SMTP_SSL", FakeSMTP)
+
+    result = EmailProvider(
+        smtp_host="smtp.example.com",
+        smtp_port=465,
+        smtp_security="ssl",
+        username="user",
+        password="secret-password",
+        sender="from@example.com",
+        recipients="one@example.com",
+        send_screenshot=True,
+        max_screenshot_mb=0.0001,
+    ).send_failure_alert(notification)
+
+    assert result.success
+    assert sent_messages[0].get_content_maintype() == "text"
+
+
 def test_email_handles_smtp_auth_failure(monkeypatch) -> None:
     """Email auth failures should return failed results without leaking passwords."""
 
@@ -550,4 +711,42 @@ def test_email_handles_smtp_auth_failure(monkeypatch) -> None:
 
     assert not result.success
     assert "authentication failed" in result.message
+    assert "secret-password" not in result.message
+
+
+def test_email_unexpected_error_does_not_leak_password(monkeypatch) -> None:
+    """Unexpected SMTP errors should not leak configured passwords."""
+
+    class FakeSMTP:
+        """Failing SMTP SSL stand-in."""
+
+        def __init__(self, host, port, timeout, context):
+            """Ignore connection settings."""
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def login(self, username, password):
+            raise RuntimeError("secret-password")
+
+        def send_message(self, message):
+            raise AssertionError("send_message should not run")
+
+    monkeypatch.setattr("smtplib.SMTP_SSL", FakeSMTP)
+
+    result = EmailProvider(
+        smtp_host="smtp.example.com",
+        smtp_port=465,
+        smtp_security="ssl",
+        username="user",
+        password="secret-password",
+        sender="from@example.com",
+        recipients="one@example.com",
+    ).send_failure_alert(make_notification())
+
+    assert not result.success
+    assert "RuntimeError" in result.message
     assert "secret-password" not in result.message

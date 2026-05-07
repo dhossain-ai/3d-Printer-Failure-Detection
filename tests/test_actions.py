@@ -205,30 +205,19 @@ def test_handle_confirmed_failure_runs_printer_when_notification_fails(
 
 
 def test_dispatch_failure_notifications_runs_in_background(
-    monkeypatch,
     tmp_path: Path,
 ) -> None:
     """Notification dispatch should not run provider work inline."""
 
     calls: list[str] = []
-    started_threads: list[object] = []
 
-    class FakeThread:
-        """Thread stand-in that records start without running target inline."""
+    class FakeDispatcher:
+        """Dispatcher stand-in that records scheduled work."""
 
-        def __init__(self, target, args, name, daemon) -> None:
-            """Record thread construction arguments."""
+        def dispatch(self, task) -> None:
+            """Record dispatch without running provider work inline."""
 
-            self.target = target
-            self.args = args
-            self.name = name
-            self.daemon = daemon
-            started_threads.append(self)
-
-        def start(self) -> None:
-            """Record that background work was scheduled."""
-
-            calls.append("start")
+            calls.append("dispatch")
 
     event = FailureEvent(
         timestamp="2026-04-29T12:30:01+03:00",
@@ -239,11 +228,6 @@ def test_dispatch_failure_notifications_runs_in_background(
         screenshot_path=tmp_path / "failure.jpg",
     )
 
-    monkeypatch.setattr("threading.Thread", FakeThread)
+    dispatch_failure_notifications(event, dispatcher=FakeDispatcher())
 
-    dispatch_failure_notifications(event)
-
-    assert calls == ["start"]
-    assert started_threads[0].target.__name__ == "send_failure_notifications"
-    assert started_threads[0].args == (event,)
-    assert started_threads[0].daemon is True
+    assert calls == ["dispatch"]
