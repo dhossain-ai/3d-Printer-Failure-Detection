@@ -49,6 +49,13 @@ PrintSentinel is a Python MVP for camera/video-based 3D print failure detection.
 - Optional HTTP auth token and extra header support
 - Lightweight architecture notes and demo asset checklist in `docs/`
 
+### Phase 6: Notification Framework
+
+- Confirmed-failure notifications routed through `actions.py`
+- Provider manager that isolates notification errors from monitoring and printer control
+- Optional Windows desktop toast provider using `windows-toasts` when installed
+- Environment flags for enabling notifications and Windows desktop alerts
+
 ## Folder Structure
 
 ```text
@@ -61,6 +68,12 @@ printer_fail_demo/
 ├── annotator.py
 ├── actions.py
 ├── printer_controller.py
+├── notifications/
+│   ├── manager.py
+│   ├── models.py
+│   └── providers/
+│       ├── base.py
+│       └── windows_toast.py
 ├── session_summary.py
 ├── sources.py
 ├── utils.py
@@ -68,6 +81,7 @@ printer_fail_demo/
 │   └── architecture.md
 ├── tests/
 │   ├── test_actions.py
+│   ├── test_notifications.py
 │   ├── test_printer_controller.py
 │   ├── test_runner.py
 │   └── test_utils.py
@@ -128,6 +142,9 @@ PRINTER_REQUEST_TIMEOUT_SECONDS = 3
 PRINTER_API_TOKEN = ""
 PRINTER_AUTH_HEADER_NAME = "Authorization"
 PRINTER_EXTRA_HEADERS_JSON = ""
+NOTIFICATIONS_ENABLED = False
+WINDOWS_NOTIFICATIONS_ENABLED = False
+WINDOWS_NOTIFICATION_APP_NAME = "PrintSentinel"
 ```
 
 Use `PRINTER_ACTION = "pause"` to request a pause instead of a stop.
@@ -180,6 +197,22 @@ python main.py
 
 The token is sent as the configured header value. Include prefixes such as `Bearer` in the token value if your endpoint expects them.
 
+## Notifications
+
+Notifications are disabled by default. When enabled, PrintSentinel sends alerts after a confirmed failure screenshot, CSV row, and terminal warning are created. Notification failures are logged as warnings and never block the configured printer stop or pause action.
+
+Enable Windows desktop notifications:
+
+```powershell
+pip install windows-toasts
+$env:PRINTSENTINEL_NOTIFICATIONS_ENABLED="true"
+$env:PRINTSENTINEL_WINDOWS_NOTIFICATIONS_ENABLED="true"
+$env:PRINTSENTINEL_WINDOWS_NOTIFICATION_APP_NAME="PrintSentinel"
+python main.py
+```
+
+On non-Windows systems, the Windows provider reports a safe skip. If `windows-toasts` is not installed on Windows, PrintSentinel reports a warning and keeps monitoring.
+
 ## Session Summary
 
 Each monitoring run prints a terminal summary at shutdown and writes a small JSON file to `logs/session_*.json`. The summary includes:
@@ -220,7 +253,7 @@ Add portfolio screenshots here after running the app:
 pytest -q
 ```
 
-The test suite covers safe filename generation, cooldown behavior, CSV row creation, event log writing, simulated action routing, controller selection, HTTP request routing, confirmed failure orchestration, and cooldown suppression. It does not require a webcam, live OpenCV window, YOLO model execution, or real printer.
+The test suite covers safe filename generation, cooldown behavior, CSV row creation, event log writing, simulated action routing, controller selection, HTTP request routing, notification handling, confirmed failure orchestration, and cooldown suppression. It does not require a webcam, live OpenCV window, YOLO model execution, or real printer.
 
 HTTP controller tests use mocked request sessions and do not require a real printer.
 
