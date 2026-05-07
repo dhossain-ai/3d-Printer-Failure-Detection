@@ -9,6 +9,7 @@ from pathlib import Path
 import config
 from creality_status import fetch_creality_status
 from creality_control import CrealityWebSocketControlClient
+from printer_controller import log_printer_command as log_command
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -24,6 +25,9 @@ class LightRequest(BaseModel):
 class FanRequest(BaseModel):
     fan: str
     percent: int
+
+class StopRequest(BaseModel):
+    confirm: str
 
 
 @app.get("/")
@@ -102,6 +106,28 @@ def control_fan(req: FanRequest):
     else:
         raise HTTPException(status_code=400, detail="Unknown fan type")
         
+    if not res.success:
+        raise HTTPException(status_code=500, detail=res.message)
+    return {"success": True, "action": res.action}
+
+
+@app.post("/api/control/pause")
+def control_pause():
+    client = get_creality_client()
+    res = client.pause_print()
+    log_command("creality_ws", "pause_print", res.success, res.message, res.response_preview)
+    if not res.success:
+        raise HTTPException(status_code=500, detail=res.message)
+    return {"success": True, "action": res.action}
+
+
+@app.post("/api/control/stop")
+def control_stop(req: StopRequest):
+    if req.confirm != "STOP":
+        raise HTTPException(status_code=400, detail="Invalid confirmation")
+    client = get_creality_client()
+    res = client.stop_print()
+    log_command("creality_ws", "stop_print", res.success, res.message, res.response_preview)
     if not res.success:
         raise HTTPException(status_code=500, detail=res.message)
     return {"success": True, "action": res.action}

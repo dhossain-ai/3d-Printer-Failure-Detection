@@ -559,6 +559,29 @@ Safety Notes:
 - The AI status shown is mostly for configuration reference. Live detection status requires running the monitoring loop alongside the dashboard.
 - **Do not expose this dashboard to the internet.** It has no authentication and could allow uncontrolled access to printer APIs on your LAN.
 
+## Real Creality Pause/Stop Backend
+
+PrintSentinel supports real printer actions for the Creality K1C via WebSocket. This allows the failure detection loop to automatically pause or stop a failing print.
+
+**Confirmed Actions:**
+- **Pause**: Sends `{"method":"set","params":{"pause":1}}`.
+- **Stop**: Sends `{"method":"set","params":{"stop":1}}`.
+- **Resume**: Explicitly not implemented/supported.
+
+To enable the real Creality backend:
+
+```powershell
+$env:PRINTSENTINEL_PRINTER_BACKEND="creality_ws"
+$env:PRINTSENTINEL_PRINTER_ACTION="pause"
+$env:PRINTSENTINEL_CREALITY_WS_URL="ws://192.168.137.211:9999"
+$env:PRINTSENTINEL_CREALITY_CONTROL_ENABLED="true"
+```
+
+Safety Notes:
+- **Stop is destructive**: Stopping a print cannot be undone. The dashboard requires an explicit "STOP" confirmation.
+- **Test first**: Use dummy prints or "air prints" to verify the pause/stop behavior before relying on it for expensive models.
+- **Monitoring loop**: Ensure the monitoring loop is running and `PRINTER_ACTION` is set to your preferred safe response.
+
 ## Screenshots
 
 Add portfolio screenshots here after running the app:

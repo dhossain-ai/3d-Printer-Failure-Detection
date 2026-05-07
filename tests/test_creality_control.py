@@ -130,7 +130,9 @@ def test_no_arbitrary_send_method():
         "set_auxiliary_fan_percent",
         "set_case_fan",
         "set_case_fan_percent",
-        "request_file_list"
+        "request_file_list",
+        "pause_print",
+        "stop_print"
     }
     
     for method in public_methods:

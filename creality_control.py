@@ -152,3 +152,17 @@ class CrealityWebSocketControlClient:
             params={"reqGcodeFile": 1},
             wait_for_key="retGcodeFileInfo"
         )
+
+    def pause_print(self) -> CrealityCommandResult:
+        return self._send_command(
+            action="pause_print",
+            method="set",
+            params={"pause": 1}
+        )
+
+    def stop_print(self) -> CrealityCommandResult:
+        return self._send_command(
+            action="stop_print",
+            method="set",
+            params={"stop": 1}
+        )

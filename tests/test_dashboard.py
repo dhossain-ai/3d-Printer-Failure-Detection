@@ -126,9 +126,14 @@ def test_control_fan_rejects_invalid_percent():
 def test_no_arbitrary_or_unsafe_endpoints():
     routes = [route.path for route in app.routes]
     
-    unsafe_keywords = ["pause", "stop", "cancel", "temp", "move", "home", "extrude"]
+    unsafe_keywords = ["cancel", "temp", "move", "home", "extrude"]
+    
+    # Pause and stop are now explicitly allowed as safe whitelisted control endpoints
+    allowed_whitelisted_endpoints = ["/api/control/pause", "/api/control/stop"]
     
     for route in routes:
+        if route in allowed_whitelisted_endpoints:
+            continue
         for keyword in unsafe_keywords:
             assert keyword not in route.lower(), f"Unsafe endpoint found: {route}"
 
@@ -195,3 +200,44 @@ def test_files_api_parses_retGcodeFileInfo(mock_client_class):
     assert len(data["files"]) == 2
     assert data["files"][0]["name"] == "test1.gcode"
     assert data["files"][1]["name"] == "test2.gcode"
+
+
+@patch("web_dashboard.app.CrealityWebSocketControlClient")
+def test_dashboard_pause_print(mock_client_class):
+    config.CREALITY_CONTROL_ENABLED = True
+    config.CREALITY_WS_URL = "ws://test"
+    
+    mock_instance = MagicMock()
+    mock_instance.pause_print.return_value = CrealityCommandResult(action="pause_print", success=True, message="ok")
+    mock_client_class.return_value = mock_instance
+    
+    response = client.post("/api/control/pause")
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+    mock_instance.pause_print.assert_called_once()
+
+
+def test_dashboard_pause_print_disabled():
+    config.CREALITY_CONTROL_ENABLED = False
+    response = client.post("/api/control/pause")
+    assert response.status_code == 403
+
+
+@patch("web_dashboard.app.CrealityWebSocketControlClient")
+def test_dashboard_stop_print(mock_client_class):
+    config.CREALITY_CONTROL_ENABLED = True
+    config.CREALITY_WS_URL = "ws://test"
+    
+    mock_instance = MagicMock()
+    mock_instance.stop_print.return_value = CrealityCommandResult(action="stop_print", success=True, message="ok")
+    mock_client_class.return_value = mock_instance
+    
+    # Missing confirmation
+    response = client.post("/api/control/stop", json={"confirm": "NO"})
+    assert response.status_code == 400
+    
+    # Correct confirmation
+    response = client.post("/api/control/stop", json={"confirm": "STOP"})
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+    mock_instance.stop_print.assert_called_once()

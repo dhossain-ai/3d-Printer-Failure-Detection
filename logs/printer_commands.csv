@@ -1,0 +1,11 @@
+timestamp,backend,action,success,message,response_preview
+1778163083.9655118,simulated,stop,False,stop failed,
+1778163090.8331745,creality_ws,pause_print,True,ok,
+1778163090.8589444,creality_ws,stop_print,True,ok,
+1778163091.3413866,simulated,pause,True,SIMULATED PRINTER ACTION: PAUSE requested.,
+1778163091.3419156,simulated,stop,True,SIMULATED PRINTER ACTION: STOP requested.,
+1778163144.1650121,simulated,stop,False,stop failed,
+1778163150.6502454,creality_ws,pause_print,True,ok,
+1778163150.6713927,creality_ws,stop_print,True,ok,
+1778163151.0645308,simulated,pause,True,SIMULATED PRINTER ACTION: PAUSE requested.,
+1778163151.0666268,simulated,stop,True,SIMULATED PRINTER ACTION: STOP requested.,

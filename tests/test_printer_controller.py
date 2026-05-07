@@ -6,10 +6,14 @@ from printer_controller import (
     HttpPrinterController,
     PrinterCommandResult,
     SimulatedPrinterController,
+    CrealityWebSocketPrinterController,
     build_request_headers,
     create_printer_controller,
     execute_printer_action,
+    log_printer_command,
 )
+from unittest.mock import patch, MagicMock
+from creality_control import CrealityCommandResult
 
 
 class FakeResponse:
@@ -171,3 +175,59 @@ def test_build_request_headers_ignores_invalid_json(capsys) -> None:
 
     assert headers == {"X-Api-Key": "secret"}
     assert "invalid PRINTER_EXTRA_HEADERS_JSON" in capsys.readouterr().err
+
+
+@patch("printer_controller.CrealityWebSocketControlClient")
+def test_creality_ws_controller_pause_and_stop(mock_client_class):
+    mock_instance = MagicMock()
+    mock_instance.pause_print.return_value = CrealityCommandResult(action="pause_print", success=True, message="ok")
+    mock_instance.stop_print.return_value = CrealityCommandResult(action="stop_print", success=True, message="ok")
+    mock_client_class.return_value = mock_instance
+    
+    controller = CrealityWebSocketPrinterController(ws_url="ws://test", timeout_seconds=5)
+    
+    assert controller.pause_print().success
+    assert controller.stop_print().success
+    assert not controller.resume_print().success
+    
+    mock_instance.pause_print.assert_called_once()
+    mock_instance.stop_print.assert_called_once()
+
+
+@patch("printer_controller.fetch_creality_status")
+def test_creality_ws_controller_healthcheck(mock_fetch):
+    controller = CrealityWebSocketPrinterController(ws_url="ws://test", timeout_seconds=5)
+    
+    mock_fetch.return_value = {"model": "K1C"}
+    assert controller.healthcheck().success
+    
+    mock_fetch.return_value = None
+    assert not controller.healthcheck().success
+
+
+def test_create_printer_controller_creality_ws(capsys):
+    with patch("printer_controller.CREALITY_WS_URL", "ws://test"):
+        controller = create_printer_controller(backend="creality_ws")
+        assert isinstance(controller, CrealityWebSocketPrinterController)
+    
+    # Missing URL fallback
+    with patch("printer_controller.CREALITY_WS_URL", ""):
+        controller = create_printer_controller(backend="creality_ws")
+        assert isinstance(controller, SimulatedPrinterController)
+        assert "requires CREALITY_WS_URL" in capsys.readouterr().err
+
+
+def test_log_printer_command(tmp_path):
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    log_file = log_dir / "printer_commands.csv"
+    
+    with patch("printer_controller.LOGS_DIR", log_dir):
+        log_printer_command("test_backend", "test_action", True, "test_message")
+        
+        assert log_file.exists()
+        content = log_file.read_text()
+        assert "test_backend" in content
+        assert "test_action" in content
+        assert "test_message" in content
+        assert "timestamp" in content # Header exists

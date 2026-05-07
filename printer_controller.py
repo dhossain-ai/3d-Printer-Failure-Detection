@@ -18,7 +18,11 @@ from config import (
     PRINTER_PAUSE_ENDPOINT,
     PRINTER_REQUEST_TIMEOUT_SECONDS,
     PRINTER_STOP_ENDPOINT,
+    CREALITY_WS_URL,
+    CREALITY_CONTROL_TIMEOUT_SECONDS,
 )
+from creality_control import CrealityWebSocketControlClient
+from creality_status import fetch_creality_status
 
 
 @dataclass(frozen=True)
@@ -160,6 +164,40 @@ class HttpPrinterController:
         return urljoin(self._base_url, endpoint.lstrip("/"))
 
 
+class CrealityWebSocketPrinterController:
+    """Printer controller that uses Creality WebSocket API for safe actions."""
+
+    def __init__(self, ws_url: str, timeout_seconds: float):
+        self._ws_url = ws_url
+        self._timeout_seconds = timeout_seconds
+        self._client = CrealityWebSocketControlClient(ws_url=ws_url, timeout_seconds=timeout_seconds)
+
+    def stop_print(self) -> PrinterCommandResult:
+        """Send a real stop command to the Creality printer."""
+        res = self._client.stop_print()
+        return PrinterCommandResult(action="stop", success=res.success, message=res.message)
+
+    def pause_print(self) -> PrinterCommandResult:
+        """Send a real pause command to the Creality printer."""
+        res = self._client.pause_print()
+        return PrinterCommandResult(action="pause", success=res.success, message=res.message)
+
+    def resume_print(self) -> PrinterCommandResult:
+        """Return failure for resume since it is explicitly not confirmed or supported."""
+        return PrinterCommandResult(
+            action="resume", 
+            success=False, 
+            message="Resume is not implemented because command is not confirmed."
+        )
+
+    def healthcheck(self) -> PrinterCommandResult:
+        """Check if WebSocket status endpoint responds."""
+        status = fetch_creality_status(self._ws_url, timeout_seconds=self._timeout_seconds)
+        if status:
+            return PrinterCommandResult(action="healthcheck", success=True, message="Creality WS connected")
+        return PrinterCommandResult(action="healthcheck", success=False, message="Creality WS fetch failed")
+
+
 def create_printer_controller(
     backend: str = PRINTER_BACKEND,
     base_url: str = PRINTER_BASE_URL,
@@ -188,6 +226,19 @@ def create_printer_controller(
                 file=sys.stderr,
             )
             return SimulatedPrinterController()
+
+    if normalized_backend == "creality_ws":
+        ws_url = CREALITY_WS_URL.strip()
+        if not ws_url:
+            print(
+                "PRINTSENTINEL WARNING: creality_ws backend requires CREALITY_WS_URL. Falling back to simulated backend.",
+                file=sys.stderr,
+            )
+            return SimulatedPrinterController()
+        return CrealityWebSocketPrinterController(
+            ws_url=ws_url, 
+            timeout_seconds=CREALITY_CONTROL_TIMEOUT_SECONDS
+        )
 
     if normalized_backend != "simulated":
         print(
@@ -249,6 +300,31 @@ def build_request_headers(
     return headers
 
 
+import time
+import csv
+from pathlib import Path
+from config import LOGS_DIR, PRINTER_BACKEND
+
+def log_printer_command(backend: str, action: str, success: bool, message: str, response_preview: str | None = None):
+    try:
+        log_file = LOGS_DIR / "printer_commands.csv"
+        file_exists = log_file.exists()
+        with open(log_file, "a", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            if not file_exists:
+                writer.writerow(["timestamp", "backend", "action", "success", "message", "response_preview"])
+            writer.writerow([
+                time.time(),
+                backend,
+                action,
+                success,
+                message,
+                response_preview or ""
+            ])
+    except Exception:
+        pass
+
+
 def execute_printer_action(
     controller: PrinterController,
     action: str,
@@ -257,6 +333,19 @@ def execute_printer_action(
 
     normalized_action = normalize_printer_action(action)
     if normalized_action == "pause":
-        return controller.pause_print()
-
-    return controller.stop_print()
+        res = controller.pause_print()
+    else:
+        res = controller.stop_print()
+        
+    response_preview = None
+    if hasattr(res, "response_preview"):
+        response_preview = res.response_preview
+        
+    log_printer_command(
+        backend=PRINTER_BACKEND, 
+        action=res.action, 
+        success=res.success, 
+        message=res.message,
+        response_preview=response_preview
+    )
+    return res

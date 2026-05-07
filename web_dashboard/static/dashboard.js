@@ -28,6 +28,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const valAuxFan = document.getElementById("val-auxiliary-fan");
     const sliderCaseFan = document.getElementById("slider-case-fan");
     const valCaseFan = document.getElementById("val-case-fan");
+    const btnPausePrint = document.getElementById("btn-pause-print");
+    const btnStopPrint = document.getElementById("btn-stop-print");
     const btnRefreshFiles = document.getElementById("btn-refresh-files");
     const filesPreview = document.getElementById("files-preview");
     const cameraContainer = document.getElementById("camera-container");
@@ -54,6 +56,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 sliderAuxFan.disabled = false;
                 sliderCaseFan.disabled = false;
                 btnRefreshFiles.disabled = false;
+                if (btnPausePrint) btnPausePrint.disabled = false;
+                if (btnStopPrint) btnStopPrint.disabled = false;
             }
 
             configDevice.textContent = config.model_device;
@@ -141,6 +145,26 @@ document.addEventListener("DOMContentLoaded", () => {
     setupFanSlider(sliderModelFan, valModelFan, "model");
     setupFanSlider(sliderAuxFan, valAuxFan, "auxiliary");
     setupFanSlider(sliderCaseFan, valCaseFan, "case");
+
+    // Print Actions
+    if (btnPausePrint) {
+        btnPausePrint.addEventListener("click", () => {
+            if (confirm("Are you sure you want to pause the print?")) {
+                sendControl("pause", {});
+            }
+        });
+    }
+
+    if (btnStopPrint) {
+        btnStopPrint.addEventListener("click", () => {
+            const val = prompt("Type STOP to confirm cancelling the print:");
+            if (val === "STOP") {
+                sendControl("stop", {confirm: "STOP"});
+            } else if (val !== null) {
+                alert("Confirmation failed. Print not stopped.");
+            }
+        });
+    }
 
     // Files
     btnRefreshFiles.addEventListener("click", async () => {
