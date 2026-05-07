@@ -88,6 +88,7 @@ printer_fail_demo/
 ├── utils.py
 ├── tools/
 │   ├── discover_printer.py
+│   ├── inspect_printer_websocket.py
 │   └── inspect_printer_webui.py
 ├── docs/
 │   └── architecture.md
@@ -97,6 +98,7 @@ printer_fail_demo/
 │   ├── test_detector.py
 │   ├── test_discover_printer.py
 │   ├── test_inspect_printer_webui.py
+│   ├── test_inspect_printer_websocket.py
 │   ├── test_notifications.py
 │   ├── test_printer_controller.py
 │   ├── test_runner.py
@@ -288,6 +290,18 @@ python tools/inspect_printer_webui.py 192.168.137.211
 This utility is read-only. It fetches `http://<host>/` with `GET`, optionally fetches a small number of same-origin JavaScript files with `GET`, caps bytes read per file, and never calls discovered API or control-looking endpoints.
 
 The report lists discovered scripts, stylesheets, possible read-only endpoints, websocket candidates, and possible control endpoints marked `candidate only - not called`. These results help decide whether a future Creality-specific controller is possible without assuming Moonraker is present.
+
+## Printer WebSocket Inspection
+
+If the web UI exposes a WebSocket candidate such as `ws://<host>:9999`, use the standalone WebSocket inspector to connect briefly and listen for server-sent messages:
+
+```bash
+python tools/inspect_printer_websocket.py 192.168.137.211
+```
+
+This utility is read-only. It connects with short timeouts, listens for a few seconds, prints truncated message previews, and does not send application-level commands, G-code, or printer-control requests.
+
+The results can show whether the WebSocket carries JSON status data and whether a future Creality-specific status or control integration might be possible. Do not run unknown commands discovered from JavaScript or WebSocket messages against the printer.
 
 ## Printer Camera Source
 
