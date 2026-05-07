@@ -72,8 +72,12 @@ printer_fail_demo/
 ├── actions.py
 ├── printer_controller.py
 ├── notifications/
+│   ├── dispatcher.py
+│   ├── logging.py
 │   ├── manager.py
 │   ├── models.py
+│   ├── screenshots.py
+│   ├── settings.py
 │   └── providers/
 │       ├── base.py
 │       ├── email.py
@@ -149,6 +153,7 @@ PRINTER_AUTH_HEADER_NAME = "Authorization"
 PRINTER_EXTRA_HEADERS_JSON = ""
 NOTIFICATIONS_ENABLED = False
 NOTIFICATION_TIMEOUT_SECONDS = 5.0
+NOTIFICATION_MAX_SCREENSHOT_MB = 5.0
 WINDOWS_NOTIFICATIONS_ENABLED = False
 WINDOWS_NOTIFICATION_APP_NAME = "PrintSentinel"
 TELEGRAM_NOTIFICATIONS_ENABLED = False
@@ -218,7 +223,9 @@ The token is sent as the configured header value. Include prefixes such as `Bear
 
 ## Notifications
 
-Notifications are disabled by default. When enabled, PrintSentinel schedules alerts after a confirmed failure screenshot, CSV row, terminal warning, and printer response are handled. Notification failures are logged as warnings and never block the configured printer stop or pause action.
+Notifications are disabled by default. When enabled, PrintSentinel schedules alerts after a confirmed failure screenshot, CSV row, terminal warning, and printer response are handled. Notification failures are logged as warnings and never block the configured printer stop or pause action. Provider results are appended to `logs/notifications.csv` with timestamp, event timestamp, provider, destination, success, and message fields.
+
+Screenshot attachments are capped by `NOTIFICATION_MAX_SCREENSHOT_MB` and default to `5.0`. If a screenshot is missing or larger than the configured limit, Telegram and email providers fall back to text-only alerts.
 
 Never commit bot tokens, SMTP passwords, chat IDs, or local notification settings. Use environment variables or a local `.env` workflow outside version control.
 
@@ -261,6 +268,7 @@ export PRINTSENTINEL_TELEGRAM_BOT_TOKEN="replace-with-bot-token"
 export PRINTSENTINEL_TELEGRAM_CHAT_ID="replace-with-chat-id"
 export PRINTSENTINEL_TELEGRAM_SEND_SCREENSHOT=true
 export PRINTSENTINEL_NOTIFICATION_TIMEOUT_SECONDS=5
+export PRINTSENTINEL_NOTIFICATION_MAX_SCREENSHOT_MB=5
 python main.py
 ```
 
@@ -280,10 +288,19 @@ export PRINTSENTINEL_EMAIL_FROM="your-address@gmail.com"
 export PRINTSENTINEL_EMAIL_TO="first@example.com,second@example.com"
 export PRINTSENTINEL_EMAIL_SEND_SCREENSHOT=true
 export PRINTSENTINEL_NOTIFICATION_TIMEOUT_SECONDS=5
+export PRINTSENTINEL_NOTIFICATION_MAX_SCREENSHOT_MB=5
 python main.py
 ```
 
 For Gmail, use an app password rather than your normal account password. `SMTP_SECURITY=starttls` with port `587` is also supported.
+
+### Notification Troubleshooting
+
+- Windows: confirm Windows notifications are enabled for the app name and that `windows-toasts` is installed in the active virtual environment.
+- Telegram: confirm the bot token, chat ID, and bot membership in the target chat. Use the settings window `Test Notification` button before a real print.
+- Gmail SMTP: use a Gmail app password, not your account password. Check whether SSL on port `465` or STARTTLS on port `587` matches your account or workspace policy.
+- Attachments: if Telegram or email arrives without an image, check that the screenshot exists and is smaller than `NOTIFICATION_MAX_SCREENSHOT_MB`.
+- Result logs: check `logs/notifications.csv` for provider-level success or failure messages.
 
 ## Session Summary
 
