@@ -3,6 +3,7 @@
 import requests
 
 from tools.inspect_printer_webui import (
+    extract_command_snippets,
     extract_endpoint_candidates,
     extract_fetch_references,
     inspect_webui,
@@ -89,6 +90,21 @@ def test_extracts_js_endpoint_and_fetch_candidates() -> None:
     ]
 
 
+def test_extracts_command_looking_snippets_with_context() -> None:
+    """Inspector should surface command-looking JavaScript context."""
+
+    js_text = """
+    const payload = JSON.stringify({cmd: "set_light", light: true});
+    socket.send(payload);
+    """
+
+    snippets = extract_command_snippets(js_text)
+
+    assert any(snippet.keyword == "json.stringify" for snippet in snippets)
+    assert any(snippet.keyword == "cmd" for snippet in snippets)
+    assert any("set_light" in snippet.snippet for snippet in snippets)
+
+
 def test_same_origin_filtering_keeps_only_same_host_scripts() -> None:
     """Only same-host JavaScript assets should be fetched."""
 
@@ -118,6 +134,7 @@ def test_inspect_webui_fetches_root_and_same_origin_js_only(monkeypatch) -> None
     js = """
     fetch("/printer/info");
     fetch("/control/stop");
+    socket.send(JSON.stringify({cmd: "stop"}));
     const socket = new WebSocket("ws://192.168.137.211/socket");
     """
     responses = {
@@ -158,6 +175,10 @@ def test_inspect_webui_fetches_root_and_same_origin_js_only(monkeypatch) -> None
     assert inspection.endpoints == ["/api/status", "/printer/info"]
     assert inspection.control_candidates == ["/control/stop"]
     assert inspection.websocket_candidates == ["ws://192.168.137.211/socket"]
+    assert any(
+        snippet.keyword == "send(" and '"stop"' in snippet.snippet
+        for snippet in inspection.command_snippets
+    )
     assert calls == [
         ("http://192.168.137.211/", {"timeout": 0.5, "stream": True}),
         ("http://192.168.137.211/app.js", {"timeout": 0.5, "stream": True}),
