@@ -531,6 +531,28 @@ Each monitoring run prints a terminal summary at shutdown and writes a small JSO
 6. Check `logs/events.csv` for event rows.
 7. Check `logs/session_*.json` for the run summary.
 
+## Local Web Dashboard
+
+PrintSentinel includes an opt-in, local-only web dashboard powered by FastAPI. The dashboard provides real-time monitoring of printer status and camera feeds alongside the local detection status. When enabled, it also provides access to safe Creality controls.
+
+To start the dashboard on port `8001`:
+
+```bash
+python tools/run_dashboard.py
+```
+
+Environment variable configuration:
+```powershell
+$env:PRINTSENTINEL_PRINTER_CAMERA_URL="http://192.168.137.211:8080/?action=stream"
+$env:PRINTSENTINEL_CREALITY_WS_URL="ws://192.168.137.211:9999"
+$env:PRINTSENTINEL_CREALITY_CONTROL_ENABLED="true"
+```
+
+Safety Notes:
+- The dashboard is **local-only** and does not require cloud integrations.
+- It only implements safe whitelisted controls like lights, fans, and file listing.
+- **Do not expose this dashboard to the internet.** It has no authentication and could allow uncontrolled access to printer APIs on your LAN.
+
 ## Screenshots
 
 Add portfolio screenshots here after running the app:

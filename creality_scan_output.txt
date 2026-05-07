@@ -1,0 +1,25 @@
+PrintSentinel Creality JavaScript Command Scan
+Root URL: http://192.168.137.211/
+Reachable: yes
+Title: Creality
+
+Fetched sources:
+  - http://192.168.137.211/ (fetched): GET succeeded (737 bytes read)
+  - http://192.168.137.211/static/js/chunk-vendors.24d5716e.js (fetched): GET succeeded (1000000 bytes read, truncated)
+  - http://192.168.137.211/static/js/app.b05d1c1a.js (fetched): GET succeeded (167102 bytes read)
+
+Websocket Setup:
+  - http://192.168.137.211/static/js/chunk-vendors.24d5716e.js [websocket]: PEN"===p.value?(j(),h.value.send(e),!0):(t&&_.push(e),!1),C=()=>{if(y)return;const e=new WebSocket(b.value,u);h.value=e,p.value="CONNECTING",e.onopen=()=>{p.value="OPEN",null==n||n(e),null=
+  - http://192.168.137.211/static/js/chunk-vendors.24d5716e.js [websocket]: els=ti,t.useVibrate=ni,t.useVirtualList=ri,t.useWakeLock=bi,t.useWebNotification=mi,t.useWebSocket=yi,t.useWebWorker=Oi,t.useWebWorkerFn=wi,t.useWindowFocus=ki,t.useWindowScroll=Ci,t.useWin
+  - http://192.168.137.211/static/js/chunk-vendors.24d5716e.js [send(]: []}},w=()=>{clearTimeout(g),g=void 0},k=(e,t=!0)=>h.value&&"OPEN"===p.value?(j(),h.value.send(e),!0):(t&&_.push(e),!1),C=()=>{if(y)return;const e=new WebSocket(b.value,u);h.value=e,p.va
+  - http://192.168.137.211/static/js/app.b05d1c1a.js [ws://]: ])(p);let pa;const ua=location.hostname;function ha(){pa&&(pa.clear(),pa=null),pa=new la(`ws://${ua}:9999`),pa.init()}ha(),ra.on("reconnect",()=>{ha()}),da.use(na),da.use(In),da.use(Obj
+  - http://192.168.137.211/static/js/app.b05d1c1a.js [websocket]: "])(),o=e=>{let t=e.toString();while(t.length<4)t="0"+t;return"E"+t};n.$messageCenter.on("websocket_open",a=>{if(t.value=!a,!a)return;let l=null;n.$messageCenter.on("message_change",t=>{if(
+  - http://192.168.137.211/static/js/app.b05d1c1a.js [websocket]: ion:0});const h=document.querySelector(".reboot");h&&h.addEventListener("click",()=>{d?n.$webSocket.sendMsg({method:"set",params:{restartFirmware:1}}):(n.$webSocket.sendMsg({method:"set",pa
+  - http://192.168.137.211/static/js/app.b05d1c1a.js [websocket]: stener("click",()=>{d?n.$webSocket.sendMsg({method:"set",params:{restartFirmware:1}}):(n.$webSocket.sendMsg({method:"set",params:{cleanErr:1}}),l.close())})}a.err&&0===a.err.errcode&&l&&l.c
+  - http://192.168.137.211/static/js/app.b05d1c1a.js [websocket]: ;Object(a["onMounted"])(()=>{const{proxy:e}=Object(a["getCurrentInstance"])();o.socket=e.$webSocket});const r=Object(u["c"])();function i(){b["a"].confirm(n("configuration.resetFuwu"),n("co
+  - http://192.168.137.211/static/js/app.b05d1c1a.js [websocket]: ;Object(a["onMounted"])(()=>{const{proxy:e}=Object(a["getCurrentInstance"])();r.socket=e.$webSocket;let t=setInterval(()=>{r.socket.sendMsg({method:"get",params:{reqPrintObjects:1}}),r.excl
+  - http://192.168.137.211/static/js/app.b05d1c1a.js [websocket]: Object(a["onMounted"])(()=>{const{proxy:e}=Object(a["getCurrentInstance"])();n.socket=e.$webSocket,n.echart=e.$echarts,l(s()),n.socket.sendMsg({method:"get",params:{reqProbedMatrix:1}})}),
+  - http://192.168.137.211/static/js/app.b05d1c1a.js [websocket]: Object(a["onMounted"])(()=>{const{proxy:e}=Object(a["getCurrentInstance"])();s.socket=e.$webSocket,s.ip=e.$ip;var t=document.getElementById("c"),n=t.getContext("2d"),o=1,r=0,i=t.width=250,
+  - http://192.168.137.211/static/js/app.b05d1c1a.js [websocket]: Object(a["onMounted"])(()=>{const{proxy:e}=Object(a["getCurrentInstance"])();o.socket=e.$webSocket,o.messageCenter=e.$messageCenter;const t=document.querySelector(".chart");let n=m();const
+  - http://192.168.137.211/static/js/app.b05d1c1a.js [websocket]: ,Object(a["onMounted"])(()=>{const{proxy:e}=Object(a["getCurrentInstance"])();r.socket=e.$webSocket,r.messageCenter=e.$messageCenter,r.ip=e.$ip;let t=setInterval(()=>{r.socket.sendMsg({meth
+  - http://192.168.137.211/static/js/app.b05d1c1a.js [websocket]: l(d.pollingMessagesTop),d.pollingMessagesZ=null}),Object(a["onMounted"])(()=>{d.socket=o.$webSocket,d.echart=o.$echarts,d.messageCenter=o.$messageCenter,d.messageCenter.on("socket_close",()

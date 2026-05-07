@@ -3,3 +3,6 @@ opencv-python
 pytest
 requests
 websocket-client
+fastapi
+uvicorn
+jinja2

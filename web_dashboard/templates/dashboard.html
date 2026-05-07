@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PrintSentinel Dashboard</title>
+    <link rel="stylesheet" href="/static/dashboard.css">
+</head>
+<body>
+    <header>
+        <h1>PrintSentinel</h1>
+        <div id="connection-status" class="status-badge disconnected">Disconnected</div>
+    </header>
+
+    <main class="dashboard-grid">
+        <!-- Connection/Status Card -->
+        <section class="card status-card">
+            <h2>Printer Status</h2>
+            <div class="status-grid">
+                <div class="status-item">
+                    <span class="label">Model:</span>
+                    <span id="printer-model" class="value">--</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Hostname:</span>
+                    <span id="printer-hostname" class="value">--</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">State:</span>
+                    <span id="printer-state" class="value">--</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Device State:</span>
+                    <span id="printer-device-state" class="value">--</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Nozzle Temp:</span>
+                    <span id="printer-nozzle-temp" class="value">--</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Bed Temp:</span>
+                    <span id="printer-bed-temp" class="value">--</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Box Temp:</span>
+                    <span id="printer-box-temp" class="value">--</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Light Status:</span>
+                    <span id="printer-light-status" class="value">--</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Camera Panel -->
+        <section class="card camera-card">
+            <h2>Camera Feed</h2>
+            <div class="camera-container" id="camera-container">
+                <div id="camera-placeholder" class="placeholder">
+                    Camera URL not configured.
+                </div>
+            </div>
+        </section>
+
+        <!-- AI Status Card -->
+        <section class="card ai-status-card">
+            <h2>AI Status</h2>
+            <div class="status-grid">
+                <div class="status-item">
+                    <span class="label">Monitoring Mode:</span>
+                    <span class="value">Active (Placeholder)</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Last Detection:</span>
+                    <span class="value">None</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Confidence Threshold:</span>
+                    <span id="config-confidence" class="value">{{ config.CONFIDENCE_THRESHOLD }}</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Model Device:</span>
+                    <span id="config-device" class="value">--</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Controls Card -->
+        <section class="card controls-card">
+            <h2>Controls</h2>
+            <div id="controls-warning" class="warning-box">
+                Real controls disabled. Set PRINTSENTINEL_CREALITY_CONTROL_ENABLED=true.
+            </div>
+            
+            <div class="control-group">
+                <h3>Light</h3>
+                <button id="btn-light-on" class="btn" disabled>On</button>
+                <button id="btn-light-off" class="btn" disabled>Off</button>
+            </div>
+            
+            <div class="control-group">
+                <h3>Model Fan (<span id="val-model-fan">0</span>%)</h3>
+                <input type="range" id="slider-model-fan" min="0" max="100" value="0" disabled>
+            </div>
+
+            <div class="control-group">
+                <h3>Auxiliary Fan (<span id="val-auxiliary-fan">0</span>%)</h3>
+                <input type="range" id="slider-auxiliary-fan" min="0" max="100" value="0" disabled>
+            </div>
+
+            <div class="control-group">
+                <h3>Case Fan (<span id="val-case-fan">0</span>%)</h3>
+                <input type="range" id="slider-case-fan" min="0" max="100" value="0" disabled>
+            </div>
+
+            <div class="control-group">
+                <h3>Files</h3>
+                <button id="btn-refresh-files" class="btn" disabled>Refresh File List</button>
+                <pre id="files-preview" class="data-preview"></pre>
+            </div>
+            
+            <div id="control-error" class="error-text"></div>
+        </section>
+        
+        <!-- Recent Events Placeholder -->
+        <section class="card events-card">
+            <h2>Recent Events</h2>
+            <div class="placeholder">
+                Log parsing not implemented in this phase.
+            </div>
+        </section>
+    </main>
+
+    <script src="/static/dashboard.js"></script>
+</body>
+</html>
