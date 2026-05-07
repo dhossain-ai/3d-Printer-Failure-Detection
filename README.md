@@ -92,9 +92,12 @@ printer_fail_demo/
 │   ├── discover_printer.py
 │   ├── inspect_printer_websocket.py
 │   ├── inspect_printer_webui.py
+│   ├── scan_creality_js_commands.py
 │   └── read_creality_status.py
 ├── docs/
-│   └── architecture.md
+│   ├── architecture.md
+│   ├── creality_command_capture_template.md
+│   └── creality_command_discovery.md
 ├── tests/
 │   ├── test_actions.py
 │   ├── test_config.py
@@ -110,6 +113,7 @@ printer_fail_demo/
 │   ├── test_runner.py
 │   ├── test_session_summary.py
 │   ├── test_sources.py
+│   ├── test_scan_creality_js_commands.py
 │   └── test_utils.py
 ├── models/
 │   └── model.pt
@@ -339,6 +343,18 @@ python main.py
 The status poller runs in the background every `CREALITY_STATUS_POLL_SECONDS` seconds, defaulting to `5.0`, and stores only the latest snapshot in memory. If the printer status feed is unavailable, monitoring continues without blocking detection.
 
 This overlay is read-only. It does not send WebSocket application commands, G-code, or printer-control requests, and it is not connected to stop, pause, or other printer actions.
+
+## Creality Command Discovery
+
+Real Creality printer control is not implemented yet. Before adding any control adapter, use the static JavaScript scanner and manual browser capture workflow to understand the exact protocol used by the K1C web UI.
+
+```bash
+python tools/scan_creality_js_commands.py 192.168.137.211
+```
+
+The scanner is GET-only, fetches same-origin JavaScript assets, applies byte limits, and prints candidate snippets for WebSocket setup, possible command names, control payloads, file APIs, camera/video APIs, and status fields. It does not open a WebSocket or send any command payload.
+
+For manual capture, follow [docs/creality_command_discovery.md](docs/creality_command_discovery.md) and use [docs/creality_command_capture_template.md](docs/creality_command_capture_template.md) for local notes. Do not test stop/cancel on an important print, do not run unknown commands against the printer, and do not paste tokens, secrets, or sensitive captures into committed files.
 
 ## Printer Camera Source
 
