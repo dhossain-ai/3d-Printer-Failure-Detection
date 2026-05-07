@@ -59,3 +59,29 @@ def test_model_device_defaults_to_auto_and_rejects_unknown_values(monkeypatch) -
 
     monkeypatch.delenv("PRINTSENTINEL_MODEL_DEVICE")
     importlib.reload(config)
+
+
+def test_creality_status_config_uses_prefixed_environment_first(monkeypatch) -> None:
+    """Creality status config should follow existing env precedence."""
+
+    monkeypatch.delenv("CREALITY_WS_URL", raising=False)
+    monkeypatch.delenv("PRINTSENTINEL_CREALITY_WS_URL", raising=False)
+    monkeypatch.delenv("CREALITY_STATUS_TIMEOUT_SECONDS", raising=False)
+    monkeypatch.delenv("PRINTSENTINEL_CREALITY_STATUS_TIMEOUT_SECONDS", raising=False)
+    reloaded_config = importlib.reload(config)
+    assert reloaded_config.CREALITY_WS_URL == ""
+    assert reloaded_config.CREALITY_STATUS_TIMEOUT_SECONDS == 5.0
+
+    monkeypatch.setenv("CREALITY_WS_URL", "ws://unprefixed:9999")
+    monkeypatch.setenv("PRINTSENTINEL_CREALITY_WS_URL", "ws://prefixed:9999")
+    monkeypatch.setenv("PRINTSENTINEL_CREALITY_STATUS_TIMEOUT_SECONDS", "7.5")
+
+    reloaded_config = importlib.reload(config)
+
+    assert reloaded_config.CREALITY_WS_URL == "ws://prefixed:9999"
+    assert reloaded_config.CREALITY_STATUS_TIMEOUT_SECONDS == 7.5
+
+    monkeypatch.delenv("CREALITY_WS_URL")
+    monkeypatch.delenv("PRINTSENTINEL_CREALITY_WS_URL")
+    monkeypatch.delenv("PRINTSENTINEL_CREALITY_STATUS_TIMEOUT_SECONDS")
+    importlib.reload(config)

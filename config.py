@@ -159,6 +159,8 @@ PRINTER_CAMERA_TYPE = _env_choice(
     "stream",
     ("stream", "snapshot"),
 )
+CREALITY_WS_URL = _env_string("CREALITY_WS_URL", "")
+CREALITY_STATUS_TIMEOUT_SECONDS = _env_float("CREALITY_STATUS_TIMEOUT_SECONDS", 5.0)
 
 SIMULATED_ACTION = PRINTER_ACTION
 

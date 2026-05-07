@@ -70,6 +70,7 @@ printer_fail_demo/
 ├── runner.py
 ├── annotator.py
 ├── actions.py
+├── creality_status.py
 ├── printer_controller.py
 ├── notifications/
 │   ├── dispatcher.py
@@ -89,18 +90,21 @@ printer_fail_demo/
 ├── tools/
 │   ├── discover_printer.py
 │   ├── inspect_printer_websocket.py
-│   └── inspect_printer_webui.py
+│   ├── inspect_printer_webui.py
+│   └── read_creality_status.py
 ├── docs/
 │   └── architecture.md
 ├── tests/
 │   ├── test_actions.py
 │   ├── test_config.py
+│   ├── test_creality_status.py
 │   ├── test_detector.py
 │   ├── test_discover_printer.py
 │   ├── test_inspect_printer_webui.py
 │   ├── test_inspect_printer_websocket.py
 │   ├── test_notifications.py
 │   ├── test_printer_controller.py
+│   ├── test_read_creality_status.py
 │   ├── test_runner.py
 │   ├── test_sources.py
 │   └── test_utils.py
@@ -164,6 +168,8 @@ PRINTER_AUTH_HEADER_NAME = "Authorization"
 PRINTER_EXTRA_HEADERS_JSON = ""
 PRINTER_CAMERA_URL = ""
 PRINTER_CAMERA_TYPE = "stream"
+CREALITY_WS_URL = ""
+CREALITY_STATUS_TIMEOUT_SECONDS = 5.0
 NOTIFICATIONS_ENABLED = False
 NOTIFICATION_TIMEOUT_SECONDS = 5.0
 NOTIFICATION_MAX_SCREENSHOT_MB = 5.0
@@ -302,6 +308,18 @@ python tools/inspect_printer_websocket.py 192.168.137.211
 This utility is read-only. It connects with short timeouts, listens for a few seconds, prints truncated message previews, and does not send application-level commands, G-code, or printer-control requests.
 
 The results can show whether the WebSocket carries JSON status data and whether a future Creality-specific status or control integration might be possible. Do not run unknown commands discovered from JavaScript or WebSocket messages against the printer.
+
+## Creality WebSocket Status
+
+The Creality K1C web UI discovery found a status WebSocket feed at `ws://<printer-ip>:9999`. Use the read-only status CLI to connect, listen for JSON status messages, and print a stable summary:
+
+```bash
+python tools/read_creality_status.py ws://192.168.137.211:9999
+```
+
+This client does not send application-level commands, G-code, or printer-control requests. It is not wired into stop, pause, or any other printer action; the simulated printer backend remains the default.
+
+Useful fields include hostname/model, state/device state, nozzle and bed temperatures with targets, box temperature, current print file, progress, time left, light status, and the raw keys seen in the message.
 
 ## Printer Camera Source
 
