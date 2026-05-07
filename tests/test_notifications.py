@@ -143,7 +143,7 @@ def test_notification_manager_catches_provider_exception() -> None:
     assert len(results) == 1
     assert results[0].provider == "exploding"
     assert not results[0].success
-    assert "boom" in results[0].message
+    assert "RuntimeError" in results[0].message
 
 
 def test_notification_manager_returns_empty_list_without_providers() -> None:

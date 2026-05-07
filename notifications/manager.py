@@ -52,7 +52,10 @@ class NotificationManager:
                         provider=provider.provider_name,
                         destination_id=provider.destination_id,
                         success=False,
-                        message=f"Provider raised an unexpected error: {exc}",
+                        message=(
+                            "Provider raised an unexpected error: "
+                            f"{exc.__class__.__name__}"
+                        ),
                     )
                 )
 

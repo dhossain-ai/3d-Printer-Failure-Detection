@@ -2,6 +2,7 @@
 
 import csv
 import sys
+import threading
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -161,14 +162,17 @@ def handle_confirmed_failure(
     )
     append_event_log(event)
     alert_failure(source, label, confidence)
+    action_result = trigger_printer_response(action)
     try:
-        send_failure_notifications(event)
+        dispatch_failure_notifications(event)
     except Exception as exc:  # noqa: BLE001 - notifications must not block printer action.
         print(
-            f"PRINTSENTINEL WARNING: notification handling failed: {exc}",
+            (
+                "PRINTSENTINEL WARNING: notification handling failed: "
+                f"{exc.__class__.__name__}"
+            ),
             file=sys.stderr,
         )
-    action_result = trigger_printer_response(action)
 
     return FailureEvent(
         timestamp=event.timestamp,
@@ -180,6 +184,18 @@ def handle_confirmed_failure(
         action_success=action_result.success,
         action_message=action_result.message,
     )
+
+
+def dispatch_failure_notifications(event: FailureEvent) -> None:
+    """Dispatch notification alerts without blocking monitoring."""
+
+    thread = threading.Thread(
+        target=send_failure_notifications,
+        args=(event,),
+        name="printsentinel-notifications",
+        daemon=True,
+    )
+    thread.start()
 
 
 def send_failure_notifications(event: FailureEvent) -> list[NotificationResult]:
@@ -203,7 +219,10 @@ def send_failure_notifications(event: FailureEvent) -> list[NotificationResult]:
                 provider="notification_manager",
                 destination_id="configured_providers",
                 success=False,
-                message=f"Notification handling failed: {exc}",
+                message=(
+                    "Notification handling failed: "
+                    f"{exc.__class__.__name__}"
+                ),
             )
         ]
 

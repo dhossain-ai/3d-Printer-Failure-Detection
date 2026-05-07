@@ -28,7 +28,7 @@ These files are placeholders for future captured screenshots. They are not requi
 
 The default printer backend is simulated. HTTP control is opt-in through environment variables or config values. If HTTP setup is incomplete or a request fails, PrintSentinel prints a warning and continues monitoring instead of crashing.
 
-Notifications are also opt-in. `NotificationManager` sends confirmed-failure alerts to configured providers and converts provider exceptions into failed results. `actions.py` reports those failures as warnings and continues to the printer response, so a desktop, Telegram, or email notification problem cannot block a stop or pause action.
+Notifications are also opt-in. `NotificationManager` sends confirmed-failure alerts to configured providers and converts provider exceptions into failed results. `actions.py` runs the printer response before dispatching notifications on a background thread, so a desktop, Telegram, or email notification problem cannot block a stop or pause action.
 
 Provider integrations stay independent: Telegram uses the Bot API through `requests`, while email uses the Python standard library SMTP stack. Provider-specific secrets are read from environment-driven config and should never be committed.
 

@@ -218,7 +218,7 @@ The token is sent as the configured header value. Include prefixes such as `Bear
 
 ## Notifications
 
-Notifications are disabled by default. When enabled, PrintSentinel sends alerts after a confirmed failure screenshot, CSV row, and terminal warning are created. Notification failures are logged as warnings and never block the configured printer stop or pause action.
+Notifications are disabled by default. When enabled, PrintSentinel schedules alerts after a confirmed failure screenshot, CSV row, terminal warning, and printer response are handled. Notification failures are logged as warnings and never block the configured printer stop or pause action.
 
 Never commit bot tokens, SMTP passwords, chat IDs, or local notification settings. Use environment variables or a local `.env` workflow outside version control.
 

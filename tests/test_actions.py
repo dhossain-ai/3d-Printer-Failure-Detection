@@ -6,6 +6,7 @@ from actions import (
     FailureEvent,
     append_event_log,
     build_event_row,
+    dispatch_failure_notifications,
     get_simulated_action_name,
     trigger_printer_response,
 )
@@ -122,7 +123,6 @@ def test_handle_confirmed_failure_runs_all_response_steps(monkeypatch, tmp_path:
 
     def fake_notify(event):
         calls.append("notify")
-        return []
 
     def fake_printer(action):
         calls.append("printer")
@@ -135,7 +135,7 @@ def test_handle_confirmed_failure_runs_all_response_steps(monkeypatch, tmp_path:
     monkeypatch.setattr("actions.save_failure_screenshot", fake_save)
     monkeypatch.setattr("actions.append_event_log", fake_log)
     monkeypatch.setattr("actions.alert_failure", fake_alert)
-    monkeypatch.setattr("actions.send_failure_notifications", fake_notify)
+    monkeypatch.setattr("actions.dispatch_failure_notifications", fake_notify)
     monkeypatch.setattr("actions.trigger_printer_response", fake_printer)
 
     from actions import handle_confirmed_failure
@@ -148,7 +148,7 @@ def test_handle_confirmed_failure_runs_all_response_steps(monkeypatch, tmp_path:
         printer_action="pause",
     )
 
-    assert calls == ["screenshot", "csv", "alert", "notify", "printer"]
+    assert calls == ["screenshot", "csv", "alert", "printer", "notify"]
     assert event.action == "pause"
     assert event.action_success is True
     assert event.action_message == "ok"
@@ -187,7 +187,7 @@ def test_handle_confirmed_failure_runs_printer_when_notification_fails(
     monkeypatch.setattr("actions.save_failure_screenshot", fake_save)
     monkeypatch.setattr("actions.append_event_log", fake_log)
     monkeypatch.setattr("actions.alert_failure", fake_alert)
-    monkeypatch.setattr("actions.send_failure_notifications", fake_notify)
+    monkeypatch.setattr("actions.dispatch_failure_notifications", fake_notify)
     monkeypatch.setattr("actions.trigger_printer_response", fake_printer)
 
     from actions import handle_confirmed_failure
@@ -200,5 +200,50 @@ def test_handle_confirmed_failure_runs_printer_when_notification_fails(
         printer_action="stop",
     )
 
-    assert calls == ["screenshot", "csv", "alert", "notify", "printer"]
+    assert calls == ["screenshot", "csv", "alert", "printer", "notify"]
     assert event.action_success is True
+
+
+def test_dispatch_failure_notifications_runs_in_background(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """Notification dispatch should not run provider work inline."""
+
+    calls: list[str] = []
+    started_threads: list[object] = []
+
+    class FakeThread:
+        """Thread stand-in that records start without running target inline."""
+
+        def __init__(self, target, args, name, daemon) -> None:
+            """Record thread construction arguments."""
+
+            self.target = target
+            self.args = args
+            self.name = name
+            self.daemon = daemon
+            started_threads.append(self)
+
+        def start(self) -> None:
+            """Record that background work was scheduled."""
+
+            calls.append("start")
+
+    event = FailureEvent(
+        timestamp="2026-04-29T12:30:01+03:00",
+        source="Sample video",
+        label="spaghetti",
+        confidence=0.9,
+        action="stop",
+        screenshot_path=tmp_path / "failure.jpg",
+    )
+
+    monkeypatch.setattr("threading.Thread", FakeThread)
+
+    dispatch_failure_notifications(event)
+
+    assert calls == ["start"]
+    assert started_threads[0].target.__name__ == "send_failure_notifications"
+    assert started_threads[0].args == (event,)
+    assert started_threads[0].daemon is True
