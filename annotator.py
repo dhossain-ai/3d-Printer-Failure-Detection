@@ -22,6 +22,7 @@ from config import (
     STATUS_FAIL_DETECTED,
     STATUS_MONITORING,
 )
+from creality_status import CrealityPrinterStatus
 
 
 @dataclass(frozen=True)
@@ -38,6 +39,7 @@ class OverlayState:
     printer_backend: str = "simulated"
     printer_action: str = "stop"
     last_action_result: str | None = None
+    creality_status: CrealityPrinterStatus | None = None
 
 
 def draw_monitoring_overlay(frame: Any, state: OverlayState) -> Any:
@@ -50,6 +52,7 @@ def draw_monitoring_overlay(frame: Any, state: OverlayState) -> Any:
     cooldown_text = _cooldown_text(state)
     printer_text = f"Printer: {state.printer_backend}/{state.printer_action}"
     action_text = _action_result_text(state)
+    status_left, status_right = _creality_status_text(state.creality_status)
 
     cv2.rectangle(
         frame,
@@ -127,6 +130,22 @@ def draw_monitoring_overlay(frame: Any, state: OverlayState) -> Any:
         color=COLOR_STATUS_DETAIL,
     )
 
+    if status_left is not None:
+        y += OVERLAY_LINE_HEIGHT
+        _put_text(
+            frame,
+            status_left,
+            (left_x, y),
+            color=COLOR_STATUS_DETAIL,
+        )
+        if status_right is not None:
+            _put_text(
+                frame,
+                status_right,
+                (right_x, y),
+                color=COLOR_STATUS_DETAIL,
+            )
+
     return frame
 
 
@@ -179,6 +198,54 @@ def _action_result_text(state: OverlayState) -> str:
         return "Last action: none"
 
     return f"Last action: {state.last_action_result}"
+
+
+def _creality_status_text(
+    status: CrealityPrinterStatus | None,
+) -> tuple[str | None, str | None]:
+    """Return compact Creality status overlay text."""
+
+    if status is None:
+        return None, None
+
+    if not status.connected or status.error is not None:
+        return "Printer status: unavailable", None
+
+    identity = _join_status_parts(status.model, status.hostname)
+    state = _join_status_parts(status.state, status.device_state)
+    left = "Printer status"
+    if identity:
+        left += f": {identity}"
+    if state:
+        left += f" [{state}]"
+
+    temp_parts = [
+        _temp_text("N", status.nozzle_temp, status.target_nozzle_temp),
+        _temp_text("B", status.bed_temp, status.target_bed_temp),
+    ]
+    right_parts = [part for part in temp_parts if part]
+    if status.print_progress is not None and status.print_progress > 0:
+        right_parts.append(f"{status.print_progress:.1f}%")
+    if status.light_on is not None:
+        right_parts.append(f"Light {'on' if status.light_on else 'off'}")
+
+    return left, " | ".join(right_parts) if right_parts else None
+
+
+def _join_status_parts(*values: str | None) -> str:
+    """Join present status values."""
+
+    return "/".join(value for value in values if value)
+
+
+def _temp_text(label: str, current: float | None, target: float | None) -> str | None:
+    """Return compact temperature text."""
+
+    if current is None and target is None:
+        return None
+    current_text = "-" if current is None else f"{current:.1f}"
+    target_text = "-" if target is None else f"{target:.1f}"
+    return f"{label} {current_text}/{target_text}C"
 
 
 def _put_text(

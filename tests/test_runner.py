@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from actions import FailureEvent
+from creality_status import CrealityPrinterStatus
 from detector import FrameDetection
 from runner import PrintSentinelRunner
 from sources import SourceKind, VideoSource
@@ -68,6 +69,42 @@ class FakeCv2:
 
     def destroyAllWindows(self) -> None:
         """Ignore destroy calls."""
+
+
+class FakeStatusPoller:
+    """Small status poller stand-in."""
+
+    instances: list["FakeStatusPoller"] = []
+
+    def __init__(
+        self,
+        ws_url: str,
+        poll_seconds: float,
+        timeout_seconds: float,
+    ) -> None:
+        """Record poller construction."""
+
+        self.ws_url = ws_url
+        self.poll_seconds = poll_seconds
+        self.timeout_seconds = timeout_seconds
+        self.started = False
+        self.stopped = False
+        self.latest_status = CrealityPrinterStatus(
+            connected=True,
+            hostname="K1C-CREALITY1",
+            model="K1C",
+        )
+        self.instances.append(self)
+
+    def start(self) -> None:
+        """Record start."""
+
+        self.started = True
+
+    def stop(self) -> None:
+        """Record stop."""
+
+        self.stopped = True
 
 
 def test_runner_triggers_actions_once_after_confirmation(monkeypatch, tmp_path: Path) -> None:
@@ -170,3 +207,76 @@ def test_runner_cooldown_suppresses_repeated_actions(monkeypatch, tmp_path: Path
     runner.run(VideoSource(kind=SourceKind.WEBCAM, label="Webcam 0", value=0))
 
     assert action_count == 1
+
+
+def test_runner_starts_and_stops_status_poller_when_configured(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """Runner should manage the read-only status poller lifecycle."""
+
+    FakeStatusPoller.instances = []
+    captured_states: list[Any] = []
+
+    monkeypatch.setattr("runner.CREALITY_STATUS_ENABLED", True)
+    monkeypatch.setattr("runner.CREALITY_WS_URL", "ws://printer:9999")
+    monkeypatch.setattr("runner.CREALITY_STATUS_POLL_SECONDS", 3.0)
+    monkeypatch.setattr("runner.CREALITY_STATUS_TIMEOUT_SECONDS", 1.5)
+    monkeypatch.setattr("runner.CrealityStatusPoller", FakeStatusPoller)
+    monkeypatch.setattr("runner.open_capture", lambda source: (FakeCapture(1), None))
+    monkeypatch.setattr("runner._cv2", lambda: FakeCv2())
+    monkeypatch.setattr("runner.print_session_start", lambda summary: None)
+    monkeypatch.setattr("runner.print_session_summary", lambda summary, path: None)
+    monkeypatch.setattr(
+        "runner.SessionSummary.write_json",
+        lambda self: tmp_path / "session.json",
+    )
+
+    def fake_draw(frame: Any, state: Any) -> Any:
+        captured_states.append(state)
+        return frame
+
+    monkeypatch.setattr("runner.draw_monitoring_overlay", fake_draw)
+
+    runner = PrintSentinelRunner(
+        detector=FakeDetector([False]),  # type: ignore[arg-type]
+    )
+    runner.run(VideoSource(kind=SourceKind.WEBCAM, label="Webcam 0", value=0))
+
+    assert len(FakeStatusPoller.instances) == 1
+    poller = FakeStatusPoller.instances[0]
+    assert poller.ws_url == "ws://printer:9999"
+    assert poller.poll_seconds == 3.0
+    assert poller.timeout_seconds == 1.5
+    assert poller.started
+    assert poller.stopped
+    assert captured_states[0].creality_status == poller.latest_status
+
+
+def test_runner_does_not_start_status_poller_without_url(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """Status polling should stay disabled unless enabled and configured."""
+
+    FakeStatusPoller.instances = []
+
+    monkeypatch.setattr("runner.CREALITY_STATUS_ENABLED", True)
+    monkeypatch.setattr("runner.CREALITY_WS_URL", "")
+    monkeypatch.setattr("runner.CrealityStatusPoller", FakeStatusPoller)
+    monkeypatch.setattr("runner.open_capture", lambda source: (FakeCapture(1), None))
+    monkeypatch.setattr("runner.draw_monitoring_overlay", lambda frame, state: frame)
+    monkeypatch.setattr("runner._cv2", lambda: FakeCv2())
+    monkeypatch.setattr("runner.print_session_start", lambda summary: None)
+    monkeypatch.setattr("runner.print_session_summary", lambda summary, path: None)
+    monkeypatch.setattr(
+        "runner.SessionSummary.write_json",
+        lambda self: tmp_path / "session.json",
+    )
+
+    runner = PrintSentinelRunner(
+        detector=FakeDetector([False]),  # type: ignore[arg-type]
+    )
+    runner.run(VideoSource(kind=SourceKind.WEBCAM, label="Webcam 0", value=0))
+
+    assert FakeStatusPoller.instances == []

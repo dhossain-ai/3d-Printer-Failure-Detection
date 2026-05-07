@@ -4,8 +4,10 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from config import LOGS_DIR
+from creality_status import CrealityPrinterStatus
 from utils import now_local, safe_timestamp
 
 
@@ -24,6 +26,7 @@ class SessionSummary:
     actions_triggered: int = 0
     screenshots_saved: int = 0
     last_action_result: str | None = None
+    latest_printer_status: dict[str, Any] | None = None
 
     def record_frame(self) -> None:
         """Record that one frame was processed."""
@@ -48,12 +51,36 @@ class SessionSummary:
             self.screenshots_saved += 1
         self.last_action_result = action_result
 
+    def record_printer_status(self, status: CrealityPrinterStatus | None) -> None:
+        """Record the latest read-only printer status snapshot."""
+
+        if status is None:
+            return
+
+        self.latest_printer_status = {
+            "connected": status.connected,
+            "hostname": status.hostname,
+            "model": status.model,
+            "state": status.state,
+            "device_state": status.device_state,
+            "nozzle_temp": status.nozzle_temp,
+            "target_nozzle_temp": status.target_nozzle_temp,
+            "bed_temp": status.bed_temp,
+            "target_bed_temp": status.target_bed_temp,
+            "box_temp": status.box_temp,
+            "print_file_name": status.print_file_name,
+            "print_progress": status.print_progress,
+            "print_left_time": status.print_left_time,
+            "light_on": status.light_on,
+            "error": status.error,
+        }
+
     def finish(self) -> None:
         """Mark the session as ended."""
 
         self.ended_at = now_local()
 
-    def to_dict(self) -> dict[str, str | int | None]:
+    def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable summary."""
 
         ended_at = self.ended_at or now_local()
@@ -71,6 +98,7 @@ class SessionSummary:
             "actions_triggered": self.actions_triggered,
             "screenshots_saved": self.screenshots_saved,
             "last_action_result": self.last_action_result,
+            "latest_printer_status": self.latest_printer_status,
         }
 
     def write_json(self, logs_dir: Path = LOGS_DIR) -> Path:
@@ -108,5 +136,7 @@ def print_session_summary(summary: SessionSummary, summary_path: Path | None) ->
     print(f"  Actions triggered: {data['actions_triggered']}")
     print(f"  Screenshots saved: {data['screenshots_saved']}")
     print(f"  Last action result: {data['last_action_result'] or 'none'}")
+    if data.get("latest_printer_status") is not None:
+        print("  Latest printer status: recorded")
     if summary_path is not None:
         print(f"  Summary file: {summary_path}")

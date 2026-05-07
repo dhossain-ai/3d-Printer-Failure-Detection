@@ -9,10 +9,15 @@ from annotator import OverlayState, draw_monitoring_overlay
 from config import (
     ALERT_COOLDOWN_SECONDS,
     CONSECUTIVE_FAIL_FRAMES,
+    CREALITY_STATUS_ENABLED,
+    CREALITY_STATUS_POLL_SECONDS,
+    CREALITY_STATUS_TIMEOUT_SECONDS,
+    CREALITY_WS_URL,
     PRINTER_ACTION,
     PRINTER_BACKEND,
     WINDOW_NAME,
 )
+from creality_status_poller import CrealityStatusPoller
 from detector import YoloFailureDetector
 from printer_controller import normalize_printer_action
 from session_summary import SessionSummary, print_session_start, print_session_summary
@@ -52,6 +57,9 @@ class PrintSentinelRunner:
             printer_backend=PRINTER_BACKEND or "simulated",
             printer_action=printer_action,
         )
+        status_poller = _create_creality_status_poller()
+        if status_poller is not None:
+            status_poller.start()
         print_session_start(session_summary)
 
         try:
@@ -93,6 +101,11 @@ class PrintSentinelRunner:
                         printer_backend=session_summary.printer_backend,
                         printer_action=session_summary.printer_action,
                         last_action_result=session_summary.last_action_result,
+                        creality_status=(
+                            status_poller.latest_status
+                            if status_poller is not None
+                            else None
+                        ),
                     ),
                 )
 
@@ -126,6 +139,9 @@ class PrintSentinelRunner:
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
         finally:
+            if status_poller is not None:
+                status_poller.stop()
+                session_summary.record_printer_status(status_poller.latest_status)
             capture.release()
             _cv2().destroyAllWindows()
             session_summary.finish()
@@ -180,3 +196,16 @@ def _cv2() -> Any:
     import cv2
 
     return cv2
+
+
+def _create_creality_status_poller() -> CrealityStatusPoller | None:
+    """Create a read-only Creality status poller when configured."""
+
+    if not CREALITY_STATUS_ENABLED or not CREALITY_WS_URL.strip():
+        return None
+
+    return CrealityStatusPoller(
+        ws_url=CREALITY_WS_URL,
+        poll_seconds=CREALITY_STATUS_POLL_SECONDS,
+        timeout_seconds=CREALITY_STATUS_TIMEOUT_SECONDS,
+    )

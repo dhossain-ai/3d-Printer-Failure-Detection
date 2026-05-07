@@ -66,22 +66,34 @@ def test_creality_status_config_uses_prefixed_environment_first(monkeypatch) -> 
 
     monkeypatch.delenv("CREALITY_WS_URL", raising=False)
     monkeypatch.delenv("PRINTSENTINEL_CREALITY_WS_URL", raising=False)
+    monkeypatch.delenv("CREALITY_STATUS_ENABLED", raising=False)
+    monkeypatch.delenv("PRINTSENTINEL_CREALITY_STATUS_ENABLED", raising=False)
+    monkeypatch.delenv("CREALITY_STATUS_POLL_SECONDS", raising=False)
+    monkeypatch.delenv("PRINTSENTINEL_CREALITY_STATUS_POLL_SECONDS", raising=False)
     monkeypatch.delenv("CREALITY_STATUS_TIMEOUT_SECONDS", raising=False)
     monkeypatch.delenv("PRINTSENTINEL_CREALITY_STATUS_TIMEOUT_SECONDS", raising=False)
     reloaded_config = importlib.reload(config)
     assert reloaded_config.CREALITY_WS_URL == ""
     assert reloaded_config.CREALITY_STATUS_TIMEOUT_SECONDS == 5.0
+    assert not reloaded_config.CREALITY_STATUS_ENABLED
+    assert reloaded_config.CREALITY_STATUS_POLL_SECONDS == 5.0
 
     monkeypatch.setenv("CREALITY_WS_URL", "ws://unprefixed:9999")
     monkeypatch.setenv("PRINTSENTINEL_CREALITY_WS_URL", "ws://prefixed:9999")
+    monkeypatch.setenv("PRINTSENTINEL_CREALITY_STATUS_ENABLED", "true")
+    monkeypatch.setenv("PRINTSENTINEL_CREALITY_STATUS_POLL_SECONDS", "3.5")
     monkeypatch.setenv("PRINTSENTINEL_CREALITY_STATUS_TIMEOUT_SECONDS", "7.5")
 
     reloaded_config = importlib.reload(config)
 
     assert reloaded_config.CREALITY_WS_URL == "ws://prefixed:9999"
     assert reloaded_config.CREALITY_STATUS_TIMEOUT_SECONDS == 7.5
+    assert reloaded_config.CREALITY_STATUS_ENABLED
+    assert reloaded_config.CREALITY_STATUS_POLL_SECONDS == 3.5
 
     monkeypatch.delenv("CREALITY_WS_URL")
     monkeypatch.delenv("PRINTSENTINEL_CREALITY_WS_URL")
+    monkeypatch.delenv("PRINTSENTINEL_CREALITY_STATUS_ENABLED")
+    monkeypatch.delenv("PRINTSENTINEL_CREALITY_STATUS_POLL_SECONDS")
     monkeypatch.delenv("PRINTSENTINEL_CREALITY_STATUS_TIMEOUT_SECONDS")
     importlib.reload(config)

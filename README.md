@@ -71,6 +71,7 @@ printer_fail_demo/
 ├── annotator.py
 ├── actions.py
 ├── creality_status.py
+├── creality_status_poller.py
 ├── printer_controller.py
 ├── notifications/
 │   ├── dispatcher.py
@@ -98,6 +99,7 @@ printer_fail_demo/
 │   ├── test_actions.py
 │   ├── test_config.py
 │   ├── test_creality_status.py
+│   ├── test_creality_status_poller.py
 │   ├── test_detector.py
 │   ├── test_discover_printer.py
 │   ├── test_inspect_printer_webui.py
@@ -106,6 +108,7 @@ printer_fail_demo/
 │   ├── test_printer_controller.py
 │   ├── test_read_creality_status.py
 │   ├── test_runner.py
+│   ├── test_session_summary.py
 │   ├── test_sources.py
 │   └── test_utils.py
 ├── models/
@@ -170,6 +173,8 @@ PRINTER_CAMERA_URL = ""
 PRINTER_CAMERA_TYPE = "stream"
 CREALITY_WS_URL = ""
 CREALITY_STATUS_TIMEOUT_SECONDS = 5.0
+CREALITY_STATUS_ENABLED = False
+CREALITY_STATUS_POLL_SECONDS = 5.0
 NOTIFICATIONS_ENABLED = False
 NOTIFICATION_TIMEOUT_SECONDS = 5.0
 NOTIFICATION_MAX_SCREENSHOT_MB = 5.0
@@ -320,6 +325,20 @@ python tools/read_creality_status.py ws://192.168.137.211:9999
 This client does not send application-level commands, G-code, or printer-control requests. It is not wired into stop, pause, or any other printer action; the simulated printer backend remains the default.
 
 Useful fields include hostname/model, state/device state, nozzle and bed temperatures with targets, box temperature, current print file, progress, time left, light status, and the raw keys seen in the message.
+
+## Live Printer Status Overlay
+
+PrintSentinel can display the latest read-only Creality WebSocket status in the monitoring overlay while detection continues. Enable it only after confirming the K1C WebSocket URL:
+
+```powershell
+$env:PRINTSENTINEL_CREALITY_WS_URL="ws://192.168.137.211:9999"
+$env:PRINTSENTINEL_CREALITY_STATUS_ENABLED="true"
+python main.py
+```
+
+The status poller runs in the background every `CREALITY_STATUS_POLL_SECONDS` seconds, defaulting to `5.0`, and stores only the latest snapshot in memory. If the printer status feed is unavailable, monitoring continues without blocking detection.
+
+This overlay is read-only. It does not send WebSocket application commands, G-code, or printer-control requests, and it is not connected to stop, pause, or other printer actions.
 
 ## Printer Camera Source
 
