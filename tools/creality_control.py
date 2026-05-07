@@ -24,7 +24,7 @@ def main():
     # fan
     fan_parser = subparsers.add_parser("fan", help="Control fans")
     fan_parser.add_argument("type", choices=["model", "auxiliary", "case"], help="Fan type")
-    fan_parser.add_argument("state", choices=["on", "off"], help="Fan state")
+    fan_parser.add_argument("state", help="Fan state: 'on', 'off', or percentage (0-100)")
     
     # files
     subparsers.add_parser("files", help="Request file list")
@@ -36,13 +36,29 @@ def main():
     if args.command == "light":
         result = client.set_light(args.state == "on")
     elif args.command == "fan":
-        enabled = args.state == "on"
-        if args.type == "model":
-            result = client.set_model_fan(enabled)
-        elif args.type == "auxiliary":
-            result = client.set_auxiliary_fan(enabled)
-        elif args.type == "case":
-            result = client.set_case_fan(enabled)
+        if args.state in ["on", "off"]:
+            enabled = args.state == "on"
+            if args.type == "model":
+                result = client.set_model_fan(enabled)
+            elif args.type == "auxiliary":
+                result = client.set_auxiliary_fan(enabled)
+            elif args.type == "case":
+                result = client.set_case_fan(enabled)
+        else:
+            try:
+                percent = int(args.state)
+                if not 0 <= percent <= 100:
+                    raise ValueError()
+            except ValueError:
+                print(f"Invalid fan state '{args.state}'. Must be 'on', 'off', or an integer between 0 and 100.")
+                sys.exit(1)
+            
+            if args.type == "model":
+                result = client.set_model_fan_percent(percent)
+            elif args.type == "auxiliary":
+                result = client.set_auxiliary_fan_percent(percent)
+            elif args.type == "case":
+                result = client.set_case_fan_percent(percent)
     elif args.command == "files":
         result = client.request_file_list()
     else:

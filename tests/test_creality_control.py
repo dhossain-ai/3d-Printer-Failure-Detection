@@ -6,7 +6,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 import websocket
 
-from creality_control import CrealityWebSocketControlClient
+from creality_control import (
+    CrealityWebSocketControlClient,
+    clamp_percent,
+    percent_to_pwm,
+    build_fan_gcode
+)
 
 
 @pytest.fixture
@@ -120,8 +125,11 @@ def test_no_arbitrary_send_method():
     allowed_methods = {
         "set_light",
         "set_model_fan",
+        "set_model_fan_percent",
         "set_auxiliary_fan",
+        "set_auxiliary_fan_percent",
         "set_case_fan",
+        "set_case_fan_percent",
         "request_file_list"
     }
     
@@ -174,3 +182,51 @@ def test_request_file_list_malformed_json(mock_ws):
     assert result.response_preview is not None
     assert "retGcodeFileInfo" in result.response_preview
     assert mock_ws.recv.call_count == 2
+
+
+def test_clamp_percent():
+    assert clamp_percent(-10) == 0
+    assert clamp_percent(0) == 0
+    assert clamp_percent(50) == 50
+    assert clamp_percent(100) == 100
+    assert clamp_percent(150) == 100
+
+
+def test_percent_to_pwm():
+    assert percent_to_pwm(0) == 0
+    assert percent_to_pwm(18) == 46
+    assert percent_to_pwm(50) == 128
+    assert percent_to_pwm(86) == 219
+    assert percent_to_pwm(100) == 255
+
+
+def test_build_fan_gcode():
+    assert build_fan_gcode(0, 18) == "M106 P0 S46"
+    assert build_fan_gcode(1, 86) == "M106 P1 S219"
+
+
+def test_set_model_fan_percent(mock_ws):
+    client = CrealityWebSocketControlClient("ws://test:9999")
+    result = client.set_model_fan_percent(18)
+    
+    assert result.success is True
+    assert result.action == "model_fan_18pct"
+    mock_ws.send.assert_called_once_with(json.dumps({"method": "set", "params": {"gcodeCmd": "M106 P0 S46"}}))
+
+
+def test_set_auxiliary_fan_percent(mock_ws):
+    client = CrealityWebSocketControlClient("ws://test:9999")
+    result = client.set_auxiliary_fan_percent(86)
+    
+    assert result.success is True
+    assert result.action == "auxiliary_fan_86pct"
+    mock_ws.send.assert_called_once_with(json.dumps({"method": "set", "params": {"gcodeCmd": "M106 P1 S219"}}))
+
+
+def test_set_case_fan_percent(mock_ws):
+    client = CrealityWebSocketControlClient("ws://test:9999")
+    result = client.set_case_fan_percent(20)
+    
+    assert result.success is True
+    assert result.action == "case_fan_20pct"
+    mock_ws.send.assert_called_once_with(json.dumps({"method": "set", "params": {"gcodeCmd": "M106 P2 S51"}}))

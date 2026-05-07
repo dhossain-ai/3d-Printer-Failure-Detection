@@ -375,6 +375,22 @@ Note: The `files` command listens briefly for a `retGcodeFileInfo` payload and s
 
 These CLI commands are safe to test manually, but the simulated printer backend remains the default for actual failure detection events. Real automated control must be opted into explicitly.
 
+## Creality Fan Percentage Controls
+
+In addition to full on/off toggles, the CLI supports exact percentage control using `M106` commands over the WebSocket. The percentage (0-100) is translated to a PWM value (0-255).
+
+```bash
+python tools/creality_control.py ws://192.168.137.211:9999 fan model 20
+python tools/creality_control.py ws://192.168.137.211:9999 fan auxiliary 50
+python tools/creality_control.py ws://192.168.137.211:9999 fan case 75
+```
+
+- `model` uses `M106 P0 S<pwm>`
+- `auxiliary` uses `M106 P1 S<pwm>`
+- `case` uses `M106 P2 S<pwm>` (Note: `P2` is inferred/experimental and should be tested carefully)
+
+These commands are sent directly to the real printer hardware.
+
 ## Printer Camera Source
 
 PrintSentinel can use a real printer camera as an input source without enabling printer-control commands. The Creality K1C discovery step found camera endpoints on port `8080`, with MJPEG stream and snapshot modes commonly exposed as:

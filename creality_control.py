@@ -20,6 +20,16 @@ def has_file_list_response(message: str) -> bool:
         pass
     return False
 
+def clamp_percent(value: int) -> int:
+    return max(0, min(100, value))
+
+def percent_to_pwm(percent: int) -> int:
+    return round(clamp_percent(percent) * 255 / 100)
+
+def build_fan_gcode(fan_index: int, percent: int) -> str:
+    pwm = percent_to_pwm(percent)
+    return f"M106 P{fan_index} S{pwm}"
+
 @dataclass
 class CrealityCommandResult:
     action: str
@@ -100,6 +110,13 @@ class CrealityWebSocketControlClient:
             params={"fan": 1 if enabled else 0}
         )
 
+    def set_model_fan_percent(self, percent: int) -> CrealityCommandResult:
+        return self._send_command(
+            action=f"model_fan_{clamp_percent(percent)}pct",
+            method="set",
+            params={"gcodeCmd": build_fan_gcode(0, percent)}
+        )
+
     def set_auxiliary_fan(self, enabled: bool) -> CrealityCommandResult:
         return self._send_command(
             action=f"auxiliary_fan_{'on' if enabled else 'off'}",
@@ -107,11 +124,25 @@ class CrealityWebSocketControlClient:
             params={"fanAuxiliary": 1 if enabled else 0}
         )
 
+    def set_auxiliary_fan_percent(self, percent: int) -> CrealityCommandResult:
+        return self._send_command(
+            action=f"auxiliary_fan_{clamp_percent(percent)}pct",
+            method="set",
+            params={"gcodeCmd": build_fan_gcode(1, percent)}
+        )
+
     def set_case_fan(self, enabled: bool) -> CrealityCommandResult:
         return self._send_command(
             action=f"case_fan_{'on' if enabled else 'off'}",
             method="set",
             params={"fanCase": 1 if enabled else 0}
+        )
+
+    def set_case_fan_percent(self, percent: int) -> CrealityCommandResult:
+        return self._send_command(
+            action=f"case_fan_{clamp_percent(percent)}pct",
+            method="set",
+            params={"gcodeCmd": build_fan_gcode(2, percent)}
         )
 
     def request_file_list(self) -> CrealityCommandResult:
