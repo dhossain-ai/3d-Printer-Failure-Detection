@@ -11,3 +11,6 @@ config/local_notification_settings.json
 captures/*
 !captures/.gitkeep
 logs/session_*.json
+dataset/raw/
+dataset/crops/
+dataset/metadata/*.jsonl

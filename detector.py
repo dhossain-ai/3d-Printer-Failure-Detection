@@ -24,6 +24,7 @@ class FrameDetection:
     failure_detected: bool
     label: str | None
     confidence: float
+    bounding_box: tuple[int, int, int, int] | None = None
 
 
 class YoloFailureDetector:
@@ -75,23 +76,28 @@ class YoloFailureDetector:
         result = results[0]
         annotated_frame = result.plot() if result is not None else frame.copy()
 
-        label, confidence = self._highest_confidence_failure(result)
+        label, confidence, bounding_box = self._highest_confidence_failure(result)
         return FrameDetection(
             annotated_frame=annotated_frame,
             failure_detected=label is not None,
             label=label,
             confidence=confidence,
+            bounding_box=bounding_box,
         )
 
-    def _highest_confidence_failure(self, result: Any) -> tuple[str | None, float]:
+    def _highest_confidence_failure(
+        self,
+        result: Any,
+    ) -> tuple[str | None, float, tuple[int, int, int, int] | None]:
         """Return the highest-confidence configured failure label."""
 
         if result.boxes is None:
-            return None, 0.0
+            return None, 0.0, None
 
         names = result.names
         best_label: str | None = None
         best_confidence = 0.0
+        best_box: tuple[int, int, int, int] | None = None
 
         for box in result.boxes:
             confidence = float(box.conf[0])
@@ -103,8 +109,9 @@ class YoloFailureDetector:
             if self._is_failure_label(label) and confidence > best_confidence:
                 best_label = label
                 best_confidence = confidence
+                best_box = _extract_xyxy_box(box)
 
-        return best_label, best_confidence
+        return best_label, best_confidence, best_box
 
     def _is_failure_label(self, label: str) -> bool:
         """Return whether a model label matches a configured failure class."""
@@ -140,3 +147,13 @@ def _is_model_device_error(exc: Exception) -> bool:
             "invalid device id",
         )
     )
+
+
+def _extract_xyxy_box(box: Any) -> tuple[int, int, int, int] | None:
+    """Return an integer xyxy bounding box from an Ultralytics box object."""
+
+    try:
+        xyxy = box.xyxy[0]
+        return tuple(int(round(float(value))) for value in xyxy[:4])
+    except Exception:
+        return None

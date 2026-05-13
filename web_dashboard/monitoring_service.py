@@ -17,6 +17,7 @@ from typing import Any
 
 import config
 from actions import trigger_printer_response
+from dataset_capture import DatasetFrameSnapshot
 from utils import AlertCooldown
 
 logger = logging.getLogger(__name__)
@@ -299,6 +300,9 @@ class DashboardMonitoringService:
         self.consecutive_fail_frames: int = self._settings.consecutive_fail_frames
         self.last_error: str | None = None
         self.last_action_result: str | None = None
+        self.latest_bounding_box: tuple[int, int, int, int] | None = None
+        self._latest_raw_frame: Any | None = None
+        self._latest_annotated_frame: Any | None = None
 
         # Latest JPEG bytes for MJPEG stream
         self._latest_frame_jpeg: bytes | None = None
@@ -456,6 +460,32 @@ class DashboardMonitoringService:
 
         return self._latest_frame_jpeg
 
+    def get_dataset_snapshot(self) -> DatasetFrameSnapshot:
+        """Return a copy of the latest frame state for dataset capture."""
+
+        with self._lock:
+            source_settings = self._source_settings
+            raw_frame = _copy_frame(self._latest_raw_frame)
+            annotated_frame = _copy_frame(self._latest_annotated_frame)
+            bounding_box = self.latest_bounding_box
+            source_name = self.source_name
+            label = self.last_detection_label
+            confidence = self.last_detection_confidence
+            confirmed_failure = self.confirmed_failure
+
+        return DatasetFrameSnapshot(
+            raw_frame=raw_frame,
+            annotated_frame=annotated_frame,
+            bounding_box=bounding_box,
+            source_type=source_settings.source_type,
+            source_name=source_name,
+            source_value=source_settings.source_value,
+            label=label,
+            confidence=confidence,
+            confirmed_failure=confirmed_failure,
+            model_device=config.MODEL_DEVICE,
+        )
+
     def get_status(self) -> dict[str, Any]:
         """Return a snapshot of the current monitoring state."""
 
@@ -482,6 +512,7 @@ class DashboardMonitoringService:
             "source_type": source_settings.source_type,
             "source_value": source_settings.source_value,
             "camera_type": source_settings.camera_type,
+            "latest_bounding_box": self.latest_bounding_box,
             "last_error": self.last_error,
             "last_action_result": self.last_action_result,
             "confidence_threshold": settings.confidence_threshold,
@@ -569,10 +600,16 @@ class DashboardMonitoringService:
                 detection = detector.detect(frame)
                 annotated = detection.annotated_frame
                 now_seconds = monotonic()
+                raw_frame = _copy_frame(frame)
+                annotated_frame = _copy_frame(annotated)
+                bounding_box = getattr(detection, "bounding_box", None)
 
                 with self._lock:
                     current_settings = self._settings
                     self.frames_processed += 1
+                    self._latest_raw_frame = raw_frame
+                    self._latest_annotated_frame = annotated_frame
+                    self.latest_bounding_box = bounding_box
                     self.failure_detected = detection.failure_detected
                     if detection.failure_detected:
                         self.last_detection_label = detection.label
@@ -706,6 +743,9 @@ class DashboardMonitoringService:
         self.consecutive_fail_frames = self._settings.consecutive_fail_frames
         self.last_error = None
         self.last_action_result = None
+        self.latest_bounding_box = None
+        self._latest_raw_frame = None
+        self._latest_annotated_frame = None
         self._latest_frame_jpeg = None
         self._alert_cooldown.last_triggered_at = None
 
@@ -736,6 +776,16 @@ def _coerce_float_or_original(value: Any) -> float | Any:
         return float(str(value).strip())
     except (TypeError, ValueError):
         return value
+
+
+def _copy_frame(frame: Any | None) -> Any | None:
+    """Return a frame copy when the object supports copying."""
+
+    if frame is None:
+        return None
+    if hasattr(frame, "copy"):
+        return frame.copy()
+    return frame
 
 
 _service = DashboardMonitoringService()

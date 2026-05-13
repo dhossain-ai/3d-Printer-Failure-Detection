@@ -657,6 +657,27 @@ Practical notes:
 - `webcam` is useful when you want a live stream for detection debugging away from the printer.
 - For offline testing, keep AI auto action in `detection_only` unless you intentionally want to exercise the simulated or configured printer backend.
 
+## Dataset Collection
+
+The dashboard includes a `Dataset Capture` panel for collecting examples during AI monitoring. It saves the latest available frame from the active source, so it works with printer camera, demo video, local video, and webcam sources.
+
+Use the capture buttons to build a future tuning dataset:
+
+- `Save False Positive`: save frames where the model flagged a failure but the print looked normal.
+- `Save True Failure`: save confirmed real failure examples.
+- `Save Normal`: save clean examples with no visible failure.
+- `Save Unsure`: save ambiguous frames for later review.
+
+Each capture can include a short note. PrintSentinel writes raw frames, annotated frames, and best-effort detection crops when a bounding box is available:
+
+```text
+dataset/raw/<category>/
+dataset/crops/<category>/
+dataset/metadata/captures.jsonl
+```
+
+Generated dataset images and JSONL metadata are ignored by Git by default. This feature is for future model tuning or fine-tuning analysis only; it does not retrain the model or change the active YOLO weights.
+
 ### AI Tuning and Auto-Action Safety
 
 The dashboard includes an `AI Tuning & Safety` panel for runtime monitoring changes. These settings apply to the dashboard monitoring service without requiring a dashboard restart, and they are intentionally safety-first by default:

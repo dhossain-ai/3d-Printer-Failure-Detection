@@ -260,6 +260,13 @@ input[type="range"] {
     margin-top: 18px;
 }
 
+.dataset-actions {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 16px;
+}
+
 .range-input-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 110px;
@@ -282,6 +289,11 @@ input[type="range"] {
     min-height: 88px;
 }
 
+#dataset-capture-result {
+    margin-top: 10px;
+    min-height: 88px;
+}
+
 .ai-warning-box {
     display: block;
     margin-top: 14px;
@@ -299,5 +311,9 @@ input[type="range"] {
 
     .range-input-row {
         grid-template-columns: 1fr;
+    }
+
+    .dataset-actions {
+        grid-template-columns: 1fr 1fr;
     }
 }

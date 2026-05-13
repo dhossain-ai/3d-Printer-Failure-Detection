@@ -231,6 +231,24 @@
             <pre id="source-settings-status" class="data-preview">Loading source settings...</pre>
         </section>
 
+        <section class="card dataset-capture-card">
+            <h2>Dataset Capture</h2>
+            <div class="settings-grid">
+                <label class="settings-grid-full">
+                    <span>Notes</span>
+                    <input type="text" id="dataset-notes" maxlength="240" placeholder="Optional note for this frame">
+                </label>
+            </div>
+            <div class="dataset-actions">
+                <button class="btn dataset-capture-btn" data-category="false_positive">Save False Positive</button>
+                <button class="btn dataset-capture-btn" data-category="true_failure">Save True Failure</button>
+                <button class="btn dataset-capture-btn" data-category="normal">Save Normal</button>
+                <button class="btn dataset-capture-btn" data-category="unsure">Save Unsure</button>
+            </div>
+            <div id="dataset-capture-error" class="error-text"></div>
+            <pre id="dataset-capture-result" class="data-preview">No dataset capture saved yet.</pre>
+        </section>
+
         <!-- Controls Card -->
         <section class="card controls-card">
             <h2>Controls</h2>

@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 import config
 from creality_status import fetch_creality_status
+from dataset_capture import capture_dataset_frame, normalize_dataset_category
 from notifications.settings import (
     LOCAL_NOTIFICATION_SETTINGS_PATH,
     load_notification_settings,
@@ -78,6 +79,11 @@ class SourceSettingsUpdateRequest(BaseModel):
     source_type: str = get_default_dashboard_source_settings().source_type
     source_value: str = get_default_dashboard_source_settings().source_value
     camera_type: str = get_default_dashboard_source_settings().camera_type
+
+
+class DatasetCaptureRequest(BaseModel):
+    category: str
+    notes: str = ""
 
 
 @app.get("/")
@@ -322,6 +328,32 @@ def get_recent_notifications():
     notifications_path = config.LOGS_DIR / "notifications.csv"
     notifications = read_recent_csv(notifications_path)
     return {"notifications": notifications}
+
+
+@app.post("/api/dataset/capture")
+def capture_dataset_example(req: DatasetCaptureRequest):
+    """Capture the latest dashboard monitoring frame for future model tuning."""
+
+    try:
+        normalize_dataset_category(req.category)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail={"errors": [str(exc)]}) from exc
+
+    try:
+        metadata = capture_dataset_frame(
+            snapshot=get_service().get_dataset_snapshot(),
+            category=req.category,
+            notes=req.notes,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 - dashboard should report, not crash.
+        raise HTTPException(
+            status_code=500,
+            detail=f"Dataset capture failed: {exc.__class__.__name__}",
+        ) from exc
+
+    return {"success": True, "capture": metadata}
 
 
 def _api_request_to_local_settings(

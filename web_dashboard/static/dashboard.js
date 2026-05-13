@@ -50,6 +50,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const sourceSettingsStatus = document.getElementById("source-settings-status");
     const btnSaveSourceSettings = document.getElementById("btn-save-source-settings");
     const configMonitoringSource = document.getElementById("config-monitoring-source");
+    const datasetNotes = document.getElementById("dataset-notes");
+    const datasetCaptureError = document.getElementById("dataset-capture-error");
+    const datasetCaptureResult = document.getElementById("dataset-capture-result");
+    const datasetCaptureButtons = document.querySelectorAll(".dataset-capture-btn");
 
     const notificationFields = {
         notificationsEnabled: document.getElementById("notifications-enabled"),
@@ -126,6 +130,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function showSourceSettingsStatus(lines) {
         sourceSettingsStatus.textContent = Array.isArray(lines) ? lines.join("\n") : String(lines || "");
+    }
+
+    function showDatasetCaptureError(message) {
+        datasetCaptureError.textContent = message || "";
+    }
+
+    function showDatasetCaptureResult(lines) {
+        datasetCaptureResult.textContent = Array.isArray(lines) ? lines.join("\n") : String(lines || "");
     }
 
     async function loadConfig() {
@@ -287,6 +299,34 @@ document.addEventListener("DOMContentLoaded", () => {
             throw new Error(errors.join("\n"));
         }
         return data;
+    }
+
+    function formatDatasetCaptureResult(capture) {
+        return [
+            `Category: ${capture.category}`,
+            `Frame: ${capture.frame_path || "--"}`,
+            `Annotated: ${capture.annotated_frame_path || "--"}`,
+            `Crop: ${capture.crop_path || "not available"}`,
+            `Label: ${capture.label || "--"}`,
+            `Confidence: ${Number(capture.confidence || 0).toFixed(2)}`,
+        ];
+    }
+
+    async function captureDatasetExample(category) {
+        const res = await fetch("/api/dataset/capture", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                category,
+                notes: datasetNotes.value.trim(),
+            }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            const detail = data.detail && data.detail.errors ? data.detail.errors.join("\n") : (data.detail || "Dataset capture failed");
+            throw new Error(detail);
+        }
+        return data.capture;
     }
 
     function updateStopWarning() {
@@ -764,6 +804,18 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
     }
+
+    datasetCaptureButtons.forEach((button) => {
+        button.addEventListener("click", async () => {
+            showDatasetCaptureError("");
+            try {
+                const capture = await captureDatasetExample(button.dataset.category);
+                showDatasetCaptureResult(formatDatasetCaptureResult(capture));
+            } catch (e) {
+                showDatasetCaptureError(e.message);
+            }
+        });
+    });
 
     // Init
     loadConfig().then(() => {

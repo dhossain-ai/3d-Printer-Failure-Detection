@@ -8,6 +8,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 import config
+import numpy as np
+from dataset_capture import DatasetFrameSnapshot
 from web_dashboard.app import app
 from web_dashboard.monitoring_service import (
     DEFAULT_DASHBOARD_AI_SETTINGS,
@@ -38,6 +40,9 @@ def reset_service():
     svc.fail_frame_count = 0
     svc.last_error = None
     svc.last_action_result = None
+    svc.latest_bounding_box = None
+    svc._latest_raw_frame = None
+    svc._latest_annotated_frame = None
     svc._latest_frame_jpeg = None
     yield
     svc.stop()
@@ -305,6 +310,7 @@ def test_service_get_status_structure():
         "failure_detected", "confirmed_failure", "fail_frame_count",
         "consecutive_fail_frames", "last_error", "last_action_result",
         "source_type", "source_value", "camera_type",
+        "latest_bounding_box",
         "confidence_threshold", "alert_cooldown_seconds",
         "auto_action_enabled", "action_mode", "cooldown_remaining_seconds",
         "printer_backend", "real_printer_command",
@@ -405,9 +411,6 @@ def test_service_stores_detection_result():
     fake_detector = MagicMock()
     fake_detector.detect.return_value = fake_detection
 
-    import numpy as np
-    dummy_img = np.zeros((10, 10, 3), dtype="uint8")
-
     with patch("web_dashboard.monitoring_service.DashboardMonitoringService._setup",
                return_value=(fake_cap, fake_detector)), \
          patch("cv2.imencode", return_value=(True, MagicMock(tobytes=lambda: b"\xff\xd8\xff"))):
@@ -419,6 +422,71 @@ def test_service_stores_detection_result():
     assert svc.last_detection_label == "spaghetti"
     assert svc.last_detection_confidence == pytest.approx(0.82)
     assert svc.frames_processed >= 1
+
+
+def test_dataset_capture_rejects_invalid_category():
+    response = client.post(
+        "/api/dataset/capture",
+        json={"category": "bad", "notes": ""},
+    )
+
+    assert response.status_code == 400
+    assert "Category must be" in response.json()["detail"]["errors"][0]
+
+
+def test_dataset_capture_rejects_when_no_frame_available():
+    response = client.post(
+        "/api/dataset/capture",
+        json={"category": "normal", "notes": ""},
+    )
+
+    assert response.status_code == 409
+    assert "No frame is available" in response.json()["detail"]
+
+
+def test_dataset_capture_api_returns_saved_paths(tmp_path: Path):
+    snapshot = DatasetFrameSnapshot(
+        raw_frame=np.zeros((12, 12, 3), dtype="uint8"),
+        annotated_frame=np.ones((12, 12, 3), dtype="uint8"),
+        bounding_box=None,
+        source_type="demo_video",
+        source_name="Sample video",
+        source_value="assets/demo.mp4",
+        label="spaghetti",
+        confidence=0.77,
+        confirmed_failure=False,
+    )
+
+    with (
+        patch("web_dashboard.app.get_service") as mock_get_service,
+        patch("web_dashboard.app.capture_dataset_frame") as mock_capture,
+    ):
+        mock_get_service.return_value.get_dataset_snapshot.return_value = snapshot
+        mock_capture.return_value = {
+            "timestamp": "2026-05-13T12:00:00+03:00",
+            "category": "false_positive",
+            "source_type": "demo_video",
+            "source_name": "Sample video",
+            "source_value": "assets/demo.mp4",
+            "label": "spaghetti",
+            "confidence": 0.77,
+            "confirmed_failure": False,
+            "frame_path": (tmp_path / "raw.jpg").as_posix(),
+            "annotated_frame_path": (tmp_path / "annotated.jpg").as_posix(),
+            "crop_path": None,
+            "model_device": "auto",
+            "notes": "reflection",
+        }
+        response = client.post(
+            "/api/dataset/capture",
+            json={"category": "false_positive", "notes": "reflection"},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
+    assert data["capture"]["frame_path"].endswith("raw.jpg")
+    assert data["capture"]["crop_path"] is None
 
 
 def test_source_settings_update_affects_monitoring_service(tmp_path: Path):

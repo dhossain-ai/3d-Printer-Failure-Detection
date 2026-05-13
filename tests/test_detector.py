@@ -1,5 +1,7 @@
 """Tests for YOLO detector behavior that do not require a real model."""
 
+from types import SimpleNamespace
+
 import pytest
 
 from detector import MODEL_DEVICE_ERROR_HINT, YoloFailureDetector
@@ -33,6 +35,17 @@ class FakeModel:
         if self.error is not None:
             raise self.error
         return [FakeResult()]
+
+
+class FakeBox:
+    """Minimal Ultralytics box stand-in."""
+
+    def __init__(self, confidence: float, class_id: int, xyxy: list[float]) -> None:
+        """Create a fake detection box."""
+
+        self.conf = [confidence]
+        self.cls = [class_id]
+        self.xyxy = [xyxy]
 
 
 def make_detector(
@@ -105,3 +118,22 @@ def test_detector_does_not_swallow_unrelated_prediction_errors() -> None:
 
     with pytest.raises(ValueError, match="unexpected model output"):
         detector.detect(object())
+
+
+def test_detector_returns_best_failure_bounding_box() -> None:
+    """Detector output should include the highest-confidence failure box."""
+
+    detector = make_detector("auto")
+    result = SimpleNamespace(
+        boxes=[
+            FakeBox(0.4, 0, [1.2, 2.4, 8.6, 9.1]),
+            FakeBox(0.8, 1, [3.0, 4.0, 13.0, 14.0]),
+        ],
+        names={0: "spaghetti", 1: "normal"},
+    )
+
+    label, confidence, bounding_box = detector._highest_confidence_failure(result)
+
+    assert label == "spaghetti"
+    assert confidence == pytest.approx(0.4)
+    assert bounding_box == (1, 2, 9, 9)
