@@ -72,6 +72,11 @@ def test_ai_settings_default_safe():
         "alert_cooldown_seconds": DEFAULT_DASHBOARD_AI_SETTINGS.alert_cooldown_seconds,
         "auto_action_enabled": False,
         "action_mode": "detection_only",
+        "roi_enabled": False,
+        "roi_x": 0.0,
+        "roi_y": 0.0,
+        "roi_width": 1.0,
+        "roi_height": 1.0,
     }
     assert data["effective"]["auto_action_active"] is False
     assert "disabled" in data["effective"]["auto_action_reason"].lower()
@@ -106,6 +111,11 @@ def test_ai_settings_update_affects_monitoring_service():
             "alert_cooldown_seconds": 12,
             "auto_action_enabled": True,
             "action_mode": "pause",
+            "roi_enabled": True,
+            "roi_x": 0.2,
+            "roi_y": 0.1,
+            "roi_width": 0.5,
+            "roi_height": 0.6,
         },
     )
 
@@ -116,6 +126,8 @@ def test_ai_settings_update_affects_monitoring_service():
     assert data["settings"]["alert_cooldown_seconds"] == 12
     assert data["settings"]["auto_action_enabled"] is True
     assert data["settings"]["action_mode"] == "pause"
+    assert data["settings"]["roi_enabled"] is True
+    assert data["settings"]["roi_x"] == pytest.approx(0.2)
 
     service = get_service()
     status = service.get_status()
@@ -124,6 +136,74 @@ def test_ai_settings_update_affects_monitoring_service():
     assert status["alert_cooldown_seconds"] == 12
     assert status["auto_action_enabled"] is True
     assert status["action_mode"] == "pause"
+    assert status["roi_enabled"] is True
+    assert status["roi_width"] == pytest.approx(0.5)
+
+
+def test_ai_settings_accepts_valid_roi_settings():
+    response = client.post(
+        "/api/ai/settings",
+        json={
+            "roi_enabled": True,
+            "roi_x": 0.1,
+            "roi_y": 0.2,
+            "roi_width": 0.7,
+            "roi_height": 0.6,
+        },
+    )
+
+    assert response.status_code == 200
+    settings = response.json()["settings"]
+    assert settings["roi_enabled"] is True
+    assert settings["roi_x"] == pytest.approx(0.1)
+    assert settings["roi_y"] == pytest.approx(0.2)
+    assert settings["roi_width"] == pytest.approx(0.7)
+    assert settings["roi_height"] == pytest.approx(0.6)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("roi_x", -0.1, "ROI x must be between 0 and 1."),
+        ("roi_y", 1.1, "ROI y must be between 0 and 1."),
+        ("roi_width", 0, "ROI width must be greater than 0."),
+        ("roi_height", 0, "ROI height must be greater than 0."),
+    ],
+)
+def test_ai_settings_rejects_invalid_roi_values(field, value, message):
+    payload = {
+        "roi_enabled": True,
+        "roi_x": 0,
+        "roi_y": 0,
+        "roi_width": 1,
+        "roi_height": 1,
+    }
+    payload[field] = value
+
+    response = client.post("/api/ai/settings", json=payload)
+
+    assert response.status_code == 400
+    assert message in response.json()["detail"]["errors"]
+
+
+def test_ai_settings_rejects_roi_x_plus_width_over_one():
+    response = client.post(
+        "/api/ai/settings",
+        json={"roi_enabled": True, "roi_x": 0.6, "roi_y": 0, "roi_width": 0.5, "roi_height": 1},
+    )
+
+    assert response.status_code == 400
+    assert "ROI x plus width must be less than or equal to 1." in response.json()["detail"]["errors"]
+
+
+def test_ai_settings_rejects_roi_y_plus_height_over_one():
+    response = client.post(
+        "/api/ai/settings",
+        json={"roi_enabled": True, "roi_x": 0, "roi_y": 0.6, "roi_width": 1, "roi_height": 0.5},
+    )
+
+    assert response.status_code == 400
+    assert "ROI y plus height must be less than or equal to 1." in response.json()["detail"]["errors"]
 
 
 def test_get_source_returns_default_source():
@@ -313,6 +393,7 @@ def test_service_get_status_structure():
         "latest_bounding_box",
         "confidence_threshold", "alert_cooldown_seconds",
         "auto_action_enabled", "action_mode", "cooldown_remaining_seconds",
+        "roi_enabled", "roi_x", "roi_y", "roi_width", "roi_height",
         "printer_backend", "real_printer_command",
         "auto_action_active", "auto_action_reason",
     }
@@ -353,6 +434,10 @@ def test_validate_ai_settings_reports_errors():
             "consecutive_fail_frames": 0,
             "alert_cooldown_seconds": -1,
             "action_mode": "resume",
+            "roi_x": 0.7,
+            "roi_width": 0.4,
+            "roi_y": 0.8,
+            "roi_height": 0.3,
         }
     )
 
@@ -360,6 +445,8 @@ def test_validate_ai_settings_reports_errors():
     assert "Consecutive fail frames must be at least 1." in errors
     assert "Alert cooldown seconds must be 0 or greater." in errors
     assert "Action mode must be detection_only, pause, or stop." in errors
+    assert "ROI x plus width must be less than or equal to 1." in errors
+    assert "ROI y plus height must be less than or equal to 1." in errors
 
 
 def test_service_handles_detector_exception_safely():
@@ -422,6 +509,96 @@ def test_service_stores_detection_result():
     assert svc.last_detection_label == "spaghetti"
     assert svc.last_detection_confidence == pytest.approx(0.82)
     assert svc.frames_processed >= 1
+
+
+def test_roi_disabled_leaves_detection_frame_unchanged():
+    svc = DashboardMonitoringService()
+    svc.update_settings({"roi_enabled": False})
+    frame = np.zeros((80, 120, 3), dtype="uint8")
+
+    fake_cap = MagicMock()
+    fake_cap.read.side_effect = [(True, frame), (False, None)]
+    fake_cap.release = MagicMock()
+
+    from detector import FrameDetection
+
+    seen_shapes: list[tuple[int, ...]] = []
+
+    def fake_detect(input_frame):
+        seen_shapes.append(input_frame.shape)
+        return FrameDetection(
+            annotated_frame=input_frame.copy(),
+            failure_detected=False,
+            label=None,
+            confidence=0.0,
+        )
+
+    fake_detector = MagicMock()
+    fake_detector.detect.side_effect = fake_detect
+
+    with patch(
+        "web_dashboard.monitoring_service.DashboardMonitoringService._setup",
+        return_value=(fake_cap, fake_detector),
+    ):
+        svc.start(camera_url="http://test/stream")
+        time.sleep(0.2)
+        svc.stop()
+
+    assert seen_shapes[0] == frame.shape
+    assert svc.latest_bounding_box is None
+
+
+def test_monitoring_service_crops_frame_when_roi_enabled():
+    svc = DashboardMonitoringService()
+    svc.update_settings(
+        {
+            "roi_enabled": True,
+            "roi_x": 0.25,
+            "roi_y": 0.1,
+            "roi_width": 0.5,
+            "roi_height": 0.5,
+        }
+    )
+    frame = np.zeros((100, 200, 3), dtype="uint8")
+
+    fake_cap = MagicMock()
+    fake_cap.read.side_effect = [(True, frame), (False, None)]
+    fake_cap.release = MagicMock()
+
+    from detector import FrameDetection
+
+    seen_shapes: list[tuple[int, ...]] = []
+
+    def fake_detect(input_frame):
+        seen_shapes.append(input_frame.shape)
+        return FrameDetection(
+            annotated_frame=input_frame.copy(),
+            failure_detected=True,
+            label="spaghetti",
+            confidence=0.8,
+            bounding_box=(1, 2, 4, 5),
+        )
+
+    fake_detector = MagicMock()
+    fake_detector.detect.side_effect = fake_detect
+
+    with patch(
+        "web_dashboard.monitoring_service.DashboardMonitoringService._setup",
+        return_value=(fake_cap, fake_detector),
+    ):
+        svc.start(camera_url="http://test/stream")
+        time.sleep(0.2)
+        svc.stop()
+
+    assert seen_shapes[0] == (50, 100, 3)
+    assert svc.latest_bounding_box == (51, 12, 54, 15)
+    assert svc.get_dataset_snapshot().roi_settings == {
+        "roi_enabled": True,
+        "roi_x": 0.25,
+        "roi_y": 0.1,
+        "roi_width": 0.5,
+        "roi_height": 0.5,
+    }
 
 
 def test_dataset_capture_rejects_invalid_category():

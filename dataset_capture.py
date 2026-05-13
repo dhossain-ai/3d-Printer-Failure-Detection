@@ -29,6 +29,7 @@ class DatasetFrameSnapshot:
     label: str | None
     confidence: float
     confirmed_failure: bool
+    roi_settings: dict[str, Any] | None = None
     model_device: str = config.MODEL_DEVICE
 
 
@@ -77,6 +78,7 @@ def capture_dataset_frame(
         "label": snapshot.label,
         "confidence": snapshot.confidence,
         "confirmed_failure": snapshot.confirmed_failure,
+        "roi_settings": snapshot.roi_settings or {},
         "frame_path": raw_path.as_posix(),
         "annotated_frame_path": (
             saved_annotated_path.as_posix() if saved_annotated_path else None

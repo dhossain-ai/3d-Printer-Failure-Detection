@@ -27,6 +27,13 @@ def make_snapshot(
         label="spaghetti",
         confidence=0.91,
         confirmed_failure=True,
+        roi_settings={
+            "roi_enabled": True,
+            "roi_x": 0.2,
+            "roi_y": 0.2,
+            "roi_width": 0.6,
+            "roi_height": 0.6,
+        },
         model_device="cpu",
     )
 
@@ -86,6 +93,8 @@ def test_capture_saves_raw_frame_and_metadata_jsonl(tmp_path: Path) -> None:
     assert len(records) == 1
     assert records[0]["frame_path"] == metadata["frame_path"]
     assert records[0]["model_device"] == "cpu"
+    assert records[0]["roi_settings"]["roi_enabled"] is True
+    assert records[0]["roi_settings"]["roi_width"] == 0.6
 
 
 def test_capture_handles_missing_crop_gracefully(tmp_path: Path) -> None:

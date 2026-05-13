@@ -73,6 +73,11 @@ class AiSettingsUpdateRequest(BaseModel):
     alert_cooldown_seconds: int | str = config.ALERT_COOLDOWN_SECONDS
     auto_action_enabled: bool = False
     action_mode: str = "detection_only"
+    roi_enabled: bool = False
+    roi_x: float | str = 0.0
+    roi_y: float | str = 0.0
+    roi_width: float | str = 1.0
+    roi_height: float | str = 1.0
 
 
 class SourceSettingsUpdateRequest(BaseModel):

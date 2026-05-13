@@ -54,6 +54,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const datasetCaptureError = document.getElementById("dataset-capture-error");
     const datasetCaptureResult = document.getElementById("dataset-capture-result");
     const datasetCaptureButtons = document.querySelectorAll(".dataset-capture-btn");
+    const roiPresetButtons = document.querySelectorAll(".roi-preset-btn");
 
     const notificationFields = {
         notificationsEnabled: document.getElementById("notifications-enabled"),
@@ -79,6 +80,11 @@ document.addEventListener("DOMContentLoaded", () => {
         alertCooldownSeconds: document.getElementById("ai-alert-cooldown-seconds"),
         autoActionEnabled: document.getElementById("ai-auto-action-enabled"),
         actionMode: document.getElementById("ai-action-mode"),
+        roiEnabled: document.getElementById("ai-roi-enabled"),
+        roiX: document.getElementById("ai-roi-x"),
+        roiY: document.getElementById("ai-roi-y"),
+        roiWidth: document.getElementById("ai-roi-width"),
+        roiHeight: document.getElementById("ai-roi-height"),
     };
     const sourceFields = {
         sourceType: document.getElementById("source-type"),
@@ -349,6 +355,11 @@ document.addEventListener("DOMContentLoaded", () => {
         aiSettingsFields.alertCooldownSeconds.value = settings.alert_cooldown_seconds;
         aiSettingsFields.autoActionEnabled.checked = !!settings.auto_action_enabled;
         aiSettingsFields.actionMode.value = settings.action_mode;
+        aiSettingsFields.roiEnabled.checked = !!settings.roi_enabled;
+        aiSettingsFields.roiX.value = settings.roi_x;
+        aiSettingsFields.roiY.value = settings.roi_y;
+        aiSettingsFields.roiWidth.value = settings.roi_width;
+        aiSettingsFields.roiHeight.value = settings.roi_height;
         document.getElementById("config-confidence").textContent = Number(settings.confidence_threshold).toFixed(2);
         updateStopWarning();
         if (effective) {
@@ -361,6 +372,7 @@ document.addEventListener("DOMContentLoaded", () => {
             `Threshold: ${Number(effective.confidence_threshold).toFixed(2)}`,
             `Consecutive frames: ${effective.consecutive_fail_frames}`,
             `Cooldown: ${effective.alert_cooldown_seconds}s`,
+            `ROI: ${effective.roi_enabled ? `enabled (${effective.roi_x}, ${effective.roi_y}, ${effective.roi_width}, ${effective.roi_height})` : "disabled"}`,
             `Auto action enabled: ${effective.auto_action_enabled ? "Yes" : "No"}`,
             `Action mode: ${effective.action_mode}`,
             `Backend: ${effective.printer_backend}${effective.real_printer_command ? " (real)" : " (simulated)"}`,
@@ -390,6 +402,11 @@ document.addEventListener("DOMContentLoaded", () => {
             alert_cooldown_seconds: aiSettingsFields.alertCooldownSeconds.value.trim(),
             auto_action_enabled: aiSettingsFields.autoActionEnabled.checked,
             action_mode: aiSettingsFields.actionMode.value,
+            roi_enabled: aiSettingsFields.roiEnabled.checked,
+            roi_x: aiSettingsFields.roiX.value.trim(),
+            roi_y: aiSettingsFields.roiY.value.trim(),
+            roi_width: aiSettingsFields.roiWidth.value.trim(),
+            roi_height: aiSettingsFields.roiHeight.value.trim(),
         };
     }
 
@@ -718,6 +735,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 alert_cooldown_seconds: s.alert_cooldown_seconds,
                 auto_action_enabled: s.auto_action_enabled,
                 action_mode: s.action_mode,
+                roi_enabled: s.roi_enabled,
+                roi_x: s.roi_x,
+                roi_y: s.roi_y,
+                roi_width: s.roi_width,
+                roi_height: s.roi_height,
                 printer_backend: s.printer_backend,
                 real_printer_command: s.real_printer_command,
                 auto_action_active: s.auto_action_active,
@@ -792,6 +814,22 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
     }
+
+    roiPresetButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+            const preset = button.dataset.roi;
+            const values = {
+                full: [0, 0, 1, 1],
+                center: [0.2, 0.2, 0.6, 0.6],
+                lower: [0.2, 0.35, 0.6, 0.55],
+            }[preset] || [0, 0, 1, 1];
+            aiSettingsFields.roiX.value = values[0];
+            aiSettingsFields.roiY.value = values[1];
+            aiSettingsFields.roiWidth.value = values[2];
+            aiSettingsFields.roiHeight.value = values[3];
+            aiSettingsFields.roiEnabled.checked = preset !== "full";
+        });
+    });
 
     if (btnSaveSourceSettings) {
         btnSaveSourceSettings.addEventListener("click", async () => {

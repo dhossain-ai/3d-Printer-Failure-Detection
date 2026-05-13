@@ -678,6 +678,31 @@ dataset/metadata/captures.jsonl
 
 Generated dataset images and JSONL metadata are ignored by Git by default. This feature is for future model tuning or fine-tuning analysis only; it does not retrain the model or change the active YOLO weights.
 
+## ROI / Detection Zone Controls
+
+The dashboard `AI Tuning & Safety` panel includes optional ROI controls that limit detection to a normalized region of the frame. ROI is disabled by default, so existing monitoring behavior is unchanged unless you enable it.
+
+ROI fields use normalized coordinates relative to the current frame:
+
+```text
+x=0.0 y=0.0 width=1.0 height=1.0
+```
+
+That example means full frame. A centered print-bed area might look like:
+
+```text
+x=0.2 y=0.2 width=0.6 height=0.6
+```
+
+When ROI is enabled, PrintSentinel crops the frame to that detection zone before running YOLO, maps detection boxes back to full-frame coordinates when boxes are available, and draws a visible ROI rectangle on the AI processed stream. Dataset capture metadata records the ROI settings used for the saved frame.
+
+Recommended false-positive workflow:
+
+1. Collect false positives with the `Dataset Capture` panel.
+2. Enable ROI around the print bed.
+3. Raise confidence threshold, usually toward `0.60` to `0.75`.
+4. Increase consecutive fail frames, usually toward `3` to `5`.
+
 ### AI Tuning and Auto-Action Safety
 
 The dashboard includes an `AI Tuning & Safety` panel for runtime monitoring changes. These settings apply to the dashboard monitoring service without requiring a dashboard restart, and they are intentionally safety-first by default:

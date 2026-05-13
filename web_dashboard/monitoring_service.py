@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from time import monotonic
@@ -24,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 AI_ACTION_MODES = ("detection_only", "pause", "stop")
 DASHBOARD_SOURCE_TYPES = ("printer_camera", "webcam", "demo_video", "local_video")
+LOCAL_AI_SETTINGS_PATH = config.BASE_DIR / "config" / "local_ai_settings.json"
 
 
 @dataclass(frozen=True)
@@ -35,6 +37,11 @@ class DashboardAiSettings:
     alert_cooldown_seconds: int = config.ALERT_COOLDOWN_SECONDS
     auto_action_enabled: bool = False
     action_mode: str = "detection_only"
+    roi_enabled: bool = False
+    roi_x: float = 0.0
+    roi_y: float = 0.0
+    roi_width: float = 1.0
+    roi_height: float = 1.0
 
 
 DEFAULT_DASHBOARD_AI_SETTINGS = DashboardAiSettings()
@@ -81,6 +88,21 @@ def normalize_ai_settings(settings: dict[str, Any] | None = None) -> dict[str, A
         "action_mode": str(
             raw.get("action_mode", DEFAULT_DASHBOARD_AI_SETTINGS.action_mode)
         ).strip().lower(),
+        "roi_enabled": _coerce_bool(
+            raw.get("roi_enabled", DEFAULT_DASHBOARD_AI_SETTINGS.roi_enabled)
+        ),
+        "roi_x": _coerce_float_or_original(
+            raw.get("roi_x", DEFAULT_DASHBOARD_AI_SETTINGS.roi_x)
+        ),
+        "roi_y": _coerce_float_or_original(
+            raw.get("roi_y", DEFAULT_DASHBOARD_AI_SETTINGS.roi_y)
+        ),
+        "roi_width": _coerce_float_or_original(
+            raw.get("roi_width", DEFAULT_DASHBOARD_AI_SETTINGS.roi_width)
+        ),
+        "roi_height": _coerce_float_or_original(
+            raw.get("roi_height", DEFAULT_DASHBOARD_AI_SETTINGS.roi_height)
+        ),
     }
 
 
@@ -106,6 +128,36 @@ def validate_ai_settings(settings: dict[str, Any] | None = None) -> list[str]:
     if action_mode not in AI_ACTION_MODES:
         errors.append("Action mode must be detection_only, pause, or stop.")
 
+    roi_x = normalized["roi_x"]
+    roi_y = normalized["roi_y"]
+    roi_width = normalized["roi_width"]
+    roi_height = normalized["roi_height"]
+    for field_name, value in (
+        ("ROI x", roi_x),
+        ("ROI y", roi_y),
+        ("ROI width", roi_width),
+        ("ROI height", roi_height),
+    ):
+        if not isinstance(value, (int, float)) or not 0 <= value <= 1:
+            errors.append(f"{field_name} must be between 0 and 1.")
+
+    if isinstance(roi_width, (int, float)) and roi_width <= 0:
+        errors.append("ROI width must be greater than 0.")
+    if isinstance(roi_height, (int, float)) and roi_height <= 0:
+        errors.append("ROI height must be greater than 0.")
+    if (
+        isinstance(roi_x, (int, float))
+        and isinstance(roi_width, (int, float))
+        and roi_x + roi_width > 1
+    ):
+        errors.append("ROI x plus width must be less than or equal to 1.")
+    if (
+        isinstance(roi_y, (int, float))
+        and isinstance(roi_height, (int, float))
+        and roi_y + roi_height > 1
+    ):
+        errors.append("ROI y plus height must be less than or equal to 1.")
+
     return errors
 
 
@@ -123,6 +175,11 @@ def build_ai_settings(settings: dict[str, Any] | None = None) -> DashboardAiSett
         alert_cooldown_seconds=int(normalized["alert_cooldown_seconds"]),
         auto_action_enabled=bool(normalized["auto_action_enabled"]),
         action_mode=str(normalized["action_mode"]),
+        roi_enabled=bool(normalized["roi_enabled"]),
+        roi_x=float(normalized["roi_x"]),
+        roi_y=float(normalized["roi_y"]),
+        roi_width=float(normalized["roi_width"]),
+        roi_height=float(normalized["roi_height"]),
     )
 
 
@@ -135,7 +192,50 @@ def serialize_ai_settings(settings: DashboardAiSettings) -> dict[str, Any]:
         "alert_cooldown_seconds": settings.alert_cooldown_seconds,
         "auto_action_enabled": settings.auto_action_enabled,
         "action_mode": settings.action_mode,
+        **serialize_roi_settings(settings),
     }
+
+
+def serialize_roi_settings(settings: DashboardAiSettings) -> dict[str, Any]:
+    """Return JSON-safe ROI settings."""
+
+    return {
+        "roi_enabled": settings.roi_enabled,
+        "roi_x": settings.roi_x,
+        "roi_y": settings.roi_y,
+        "roi_width": settings.roi_width,
+        "roi_height": settings.roi_height,
+    }
+
+
+def load_ai_settings(path: Path = LOCAL_AI_SETTINGS_PATH) -> DashboardAiSettings:
+    """Load persisted dashboard AI settings or return safe defaults."""
+
+    if not path.exists():
+        return DEFAULT_DASHBOARD_AI_SETTINGS
+    try:
+        with path.open("r", encoding="utf-8") as settings_file:
+            raw_settings = json.load(settings_file)
+    except (OSError, json.JSONDecodeError):
+        return DEFAULT_DASHBOARD_AI_SETTINGS
+    if not isinstance(raw_settings, dict):
+        return DEFAULT_DASHBOARD_AI_SETTINGS
+    try:
+        return build_ai_settings(raw_settings)
+    except ValueError:
+        return DEFAULT_DASHBOARD_AI_SETTINGS
+
+
+def save_ai_settings(
+    settings: DashboardAiSettings,
+    path: Path = LOCAL_AI_SETTINGS_PATH,
+) -> None:
+    """Persist dashboard AI settings locally."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as settings_file:
+        json.dump(serialize_ai_settings(settings), settings_file, indent=2, sort_keys=True)
+        settings_file.write("\n")
 
 
 def get_default_dashboard_source_settings() -> DashboardSourceSettings:
@@ -282,7 +382,7 @@ class DashboardMonitoringService:
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
         self._detector: Any | None = None
-        self._settings = DEFAULT_DASHBOARD_AI_SETTINGS
+        self._settings = load_ai_settings()
         self._source_settings = get_default_dashboard_source_settings()
         self._alert_cooldown = AlertCooldown(
             seconds=self._settings.alert_cooldown_seconds
@@ -383,6 +483,7 @@ class DashboardMonitoringService:
             self._alert_cooldown.seconds = updated_settings.alert_cooldown_seconds
             active_detector = self._detector
 
+        save_ai_settings(updated_settings)
         if active_detector is not None and hasattr(active_detector, "_confidence_threshold"):
             active_detector._confidence_threshold = updated_settings.confidence_threshold
 
@@ -472,6 +573,7 @@ class DashboardMonitoringService:
             label = self.last_detection_label
             confidence = self.last_detection_confidence
             confirmed_failure = self.confirmed_failure
+            roi_settings = serialize_roi_settings(self._settings)
 
         return DatasetFrameSnapshot(
             raw_frame=raw_frame,
@@ -483,6 +585,7 @@ class DashboardMonitoringService:
             label=label,
             confidence=confidence,
             confirmed_failure=confirmed_failure,
+            roi_settings=roi_settings,
             model_device=config.MODEL_DEVICE,
         )
 
@@ -519,6 +622,7 @@ class DashboardMonitoringService:
             "alert_cooldown_seconds": settings.alert_cooldown_seconds,
             "auto_action_enabled": settings.auto_action_enabled,
             "action_mode": settings.action_mode,
+            **serialize_roi_settings(settings),
             "cooldown_remaining_seconds": cooldown_remaining,
             "printer_backend": effective["printer_backend"],
             "real_printer_command": effective["real_printer_command"],
@@ -597,15 +701,26 @@ class DashboardMonitoringService:
                 continue
 
             try:
-                detection = detector.detect(frame)
-                annotated = detection.annotated_frame
+                with self._lock:
+                    current_settings = self._settings
+                roi_bounds = _frame_roi_bounds(frame, current_settings)
+                detection_frame = _crop_frame(frame, roi_bounds)
+                detection = detector.detect(detection_frame)
+                annotated = _compose_annotated_frame(
+                    frame=frame,
+                    annotated_detection_frame=detection.annotated_frame,
+                    roi_bounds=roi_bounds,
+                    roi_enabled=current_settings.roi_enabled,
+                )
                 now_seconds = monotonic()
                 raw_frame = _copy_frame(frame)
                 annotated_frame = _copy_frame(annotated)
-                bounding_box = getattr(detection, "bounding_box", None)
+                bounding_box = _remap_bounding_box(
+                    getattr(detection, "bounding_box", None),
+                    roi_bounds,
+                )
 
                 with self._lock:
-                    current_settings = self._settings
                     self.frames_processed += 1
                     self._latest_raw_frame = raw_frame
                     self._latest_annotated_frame = annotated_frame
@@ -786,6 +901,77 @@ def _copy_frame(frame: Any | None) -> Any | None:
     if hasattr(frame, "copy"):
         return frame.copy()
     return frame
+
+
+def _frame_roi_bounds(
+    frame: Any,
+    settings: DashboardAiSettings,
+) -> tuple[int, int, int, int] | None:
+    """Return pixel ROI bounds for a frame, or None when ROI is disabled."""
+
+    if not settings.roi_enabled:
+        return None
+    try:
+        height, width = frame.shape[:2]
+    except Exception:
+        return None
+    x1 = int(round(settings.roi_x * width))
+    y1 = int(round(settings.roi_y * height))
+    x2 = int(round((settings.roi_x + settings.roi_width) * width))
+    y2 = int(round((settings.roi_y + settings.roi_height) * height))
+    x1 = max(0, min(width - 1, x1))
+    y1 = max(0, min(height - 1, y1))
+    x2 = max(x1 + 1, min(width, x2))
+    y2 = max(y1 + 1, min(height, y2))
+    return x1, y1, x2, y2
+
+
+def _crop_frame(frame: Any, roi_bounds: tuple[int, int, int, int] | None) -> Any:
+    """Return the ROI crop or the original frame when ROI is disabled."""
+
+    if roi_bounds is None:
+        return frame
+    x1, y1, x2, y2 = roi_bounds
+    return frame[y1:y2, x1:x2]
+
+
+def _compose_annotated_frame(
+    frame: Any,
+    annotated_detection_frame: Any,
+    roi_bounds: tuple[int, int, int, int] | None,
+    roi_enabled: bool,
+) -> Any:
+    """Return an annotated full-frame image with an optional ROI rectangle."""
+
+    import cv2
+
+    if roi_bounds is None:
+        annotated = _copy_frame(annotated_detection_frame)
+    else:
+        annotated = _copy_frame(frame)
+        x1, y1, x2, y2 = roi_bounds
+        try:
+            annotated[y1:y2, x1:x2] = annotated_detection_frame
+        except Exception:
+            pass
+
+    if roi_enabled and roi_bounds is not None:
+        x1, y1, x2, y2 = roi_bounds
+        cv2.rectangle(annotated, (x1, y1), (x2 - 1, y2 - 1), (0, 220, 255), 2)
+    return annotated
+
+
+def _remap_bounding_box(
+    bounding_box: tuple[int, int, int, int] | None,
+    roi_bounds: tuple[int, int, int, int] | None,
+) -> tuple[int, int, int, int] | None:
+    """Map ROI-relative boxes back to full-frame coordinates."""
+
+    if bounding_box is None or roi_bounds is None:
+        return bounding_box
+    x1, y1, x2, y2 = bounding_box
+    roi_x1, roi_y1, _, _ = roi_bounds
+    return x1 + roi_x1, y1 + roi_y1, x2 + roi_x1, y2 + roi_y1
 
 
 _service = DashboardMonitoringService()

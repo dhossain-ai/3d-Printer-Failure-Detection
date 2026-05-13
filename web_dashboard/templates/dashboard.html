@@ -177,7 +177,35 @@
                         <option value="stop">Stop</option>
                     </select>
                 </label>
+                <label class="settings-checkbox settings-grid-full">
+                    <input type="checkbox" id="ai-roi-enabled">
+                    <span>Enable ROI detection zone</span>
+                </label>
+                <label>
+                    <span>ROI x</span>
+                    <input type="number" id="ai-roi-x" min="0" max="1" step="0.01" value="0">
+                </label>
+                <label>
+                    <span>ROI y</span>
+                    <input type="number" id="ai-roi-y" min="0" max="1" step="0.01" value="0">
+                </label>
+                <label>
+                    <span>ROI width</span>
+                    <input type="number" id="ai-roi-width" min="0.01" max="1" step="0.01" value="1">
+                </label>
+                <label>
+                    <span>ROI height</span>
+                    <input type="number" id="ai-roi-height" min="0.01" max="1" step="0.01" value="1">
+                </label>
+                <div class="settings-grid-full roi-presets">
+                    <button type="button" class="btn btn-sm roi-preset-btn" data-roi="full">Full frame</button>
+                    <button type="button" class="btn btn-sm roi-preset-btn" data-roi="center">Center bed</button>
+                    <button type="button" class="btn btn-sm roi-preset-btn" data-roi="lower">Lower center</button>
+                </div>
             </div>
+            <p class="settings-note">
+                Values are normalized 0.0-1.0. Example: x=0.2 y=0.2 width=0.6 height=0.6
+            </p>
             <div id="ai-stop-warning" class="warning-box ai-warning-box" style="display:none;">
                 Stop mode is destructive. Test with detection-only or pause first before enabling stop.
             </div>
