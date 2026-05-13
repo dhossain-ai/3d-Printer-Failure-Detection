@@ -614,6 +614,49 @@ Notes:
 - **Local only**: The MJPEG stream is served locally and should not be exposed to the internet.
 - **Resource intensive**: YOLO inference on a live stream consumes significant CPU/GPU. Use `cuda` for best performance.
 
+## Dashboard Offline / Demo Mode
+
+You can develop and test the dashboard away from the printer by switching the `Camera / AI Source` panel to a non-printer source. This is useful for model tuning, frontend work, and validating the dashboard monitoring loop without depending on a live K1C on your LAN.
+
+Recommended offline test sources:
+
+- Demo video:
+
+```powershell
+python tools/run_dashboard.py
+```
+
+Then open the dashboard, set source type to `demo_video`, and use the bundled path:
+
+```text
+assets/demo.mp4
+```
+
+- Webcam:
+
+```powershell
+python tools/run_dashboard.py
+```
+
+Then set source type to `webcam` and use webcam index `0` unless your system needs a different camera index.
+
+- Printer camera:
+
+```powershell
+$env:PRINTSENTINEL_PRINTER_CAMERA_URL="http://192.168.137.211:8080/?action=stream"
+$env:PRINTSENTINEL_PRINTER_CAMERA_TYPE="stream"
+python tools/run_dashboard.py
+```
+
+Then set source type to `printer_camera` and confirm the URL and camera type in the dashboard source panel.
+
+Practical notes:
+
+- Source changes are runtime-configurable, but if monitoring is already running you should stop and start it again to use the new source safely.
+- `demo_video` and `local_video` are the easiest way to tune thresholds and frontend behavior without a real printer.
+- `webcam` is useful when you want a live stream for detection debugging away from the printer.
+- For offline testing, keep AI auto action in `detection_only` unless you intentionally want to exercise the simulated or configured printer backend.
+
 ### AI Tuning and Auto-Action Safety
 
 The dashboard includes an `AI Tuning & Safety` panel for runtime monitoring changes. These settings apply to the dashboard monitoring service without requiring a dashboard restart, and they are intentionally safety-first by default:

@@ -22,6 +22,7 @@ class SourceKind(str, Enum):
     """Supported input source types for Phase 1."""
 
     SAMPLE_VIDEO = "sample_video"
+    LOCAL_VIDEO = "local_video"
     WEBCAM = "webcam"
     MOBILE_URL = "mobile_url"
     PRINTER_CAMERA = "printer_camera"
@@ -43,6 +44,16 @@ def sample_video_source(path: Path = SAMPLE_VIDEO_PATH) -> VideoSource:
     return VideoSource(
         kind=SourceKind.SAMPLE_VIDEO,
         label="Sample video",
+        value=str(path),
+    )
+
+
+def local_video_source(path: Path) -> VideoSource:
+    """Return a user-supplied local video source."""
+
+    return VideoSource(
+        kind=SourceKind.LOCAL_VIDEO,
+        label=f"Local video ({path.name})",
         value=str(path),
     )
 
@@ -94,10 +105,12 @@ def normalize_printer_camera_type(camera_type: str) -> str:
 def validate_source(source: VideoSource) -> str | None:
     """Return an error message when a selected source is not usable."""
 
-    if source.kind == SourceKind.SAMPLE_VIDEO:
+    if source.kind in {SourceKind.SAMPLE_VIDEO, SourceKind.LOCAL_VIDEO}:
         path = Path(str(source.value))
         if not path.exists():
-            return f"Sample video not found: {path}"
+            if source.kind == SourceKind.SAMPLE_VIDEO:
+                return f"Sample video not found: {path}"
+            return f"Local video not found: {path}"
 
     if source.kind == SourceKind.MOBILE_URL and not str(source.value).strip():
         return "Mobile camera URL cannot be empty."

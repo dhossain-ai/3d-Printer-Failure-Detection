@@ -11,6 +11,7 @@ import logging
 import threading
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from time import monotonic
 from typing import Any
 
@@ -21,6 +22,7 @@ from utils import AlertCooldown
 logger = logging.getLogger(__name__)
 
 AI_ACTION_MODES = ("detection_only", "pause", "stop")
+DASHBOARD_SOURCE_TYPES = ("printer_camera", "webcam", "demo_video", "local_video")
 
 
 @dataclass(frozen=True)
@@ -35,6 +37,15 @@ class DashboardAiSettings:
 
 
 DEFAULT_DASHBOARD_AI_SETTINGS = DashboardAiSettings()
+
+
+@dataclass(frozen=True)
+class DashboardSourceSettings:
+    """Runtime source settings for dashboard AI monitoring."""
+
+    source_type: str
+    source_value: str
+    camera_type: str = "stream"
 
 
 def normalize_ai_settings(settings: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -126,6 +137,142 @@ def serialize_ai_settings(settings: DashboardAiSettings) -> dict[str, Any]:
     }
 
 
+def get_default_dashboard_source_settings() -> DashboardSourceSettings:
+    """Return safe default dashboard source settings based on local availability."""
+
+    if config.PRINTER_CAMERA_URL.strip():
+        return DashboardSourceSettings(
+            source_type="printer_camera",
+            source_value=config.PRINTER_CAMERA_URL.strip(),
+            camera_type=config.PRINTER_CAMERA_TYPE,
+        )
+
+    if config.SAMPLE_VIDEO_PATH.exists():
+        return DashboardSourceSettings(
+            source_type="demo_video",
+            source_value=str(config.SAMPLE_VIDEO_PATH),
+            camera_type="stream",
+        )
+
+    return DashboardSourceSettings(
+        source_type="webcam",
+        source_value="0",
+        camera_type="stream",
+    )
+
+
+def normalize_source_settings(
+    settings: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Normalize a partial source settings payload into scalar values."""
+
+    defaults = get_default_dashboard_source_settings()
+    raw = settings or {}
+    return {
+        "source_type": str(raw.get("source_type", defaults.source_type)).strip().lower(),
+        "source_value": str(raw.get("source_value", defaults.source_value)).strip(),
+        "camera_type": str(raw.get("camera_type", defaults.camera_type)).strip().lower(),
+    }
+
+
+def validate_source_settings(
+    settings: dict[str, Any] | None = None,
+) -> list[str]:
+    """Return validation errors for dashboard source settings."""
+
+    normalized = normalize_source_settings(settings)
+    errors: list[str] = []
+    source_type = normalized["source_type"]
+    source_value = normalized["source_value"]
+    camera_type = normalized["camera_type"]
+
+    if source_type not in DASHBOARD_SOURCE_TYPES:
+        errors.append(
+            "Source type must be printer_camera, webcam, demo_video, or local_video."
+        )
+        return errors
+
+    if source_type == "printer_camera":
+        if not source_value:
+            errors.append("Printer camera URL is required for printer_camera source.")
+        if camera_type not in {"stream", "snapshot"}:
+            errors.append("Camera type must be stream or snapshot.")
+    elif source_type == "webcam":
+        webcam_index = _coerce_int_or_original(source_value)
+        if not isinstance(webcam_index, int) or webcam_index < 0:
+            errors.append("Webcam index must be a whole number 0 or greater.")
+    elif source_type in {"demo_video", "local_video"}:
+        if not source_value:
+            errors.append("Video path is required for demo_video or local_video source.")
+        elif not Path(source_value).exists():
+            label = "Demo video" if source_type == "demo_video" else "Local video"
+            errors.append(f"{label} path does not exist: {source_value}")
+
+    return errors
+
+
+def build_source_settings(
+    settings: dict[str, Any] | None = None,
+) -> DashboardSourceSettings:
+    """Build validated dashboard source settings."""
+
+    normalized = normalize_source_settings(settings)
+    errors = validate_source_settings(normalized)
+    if errors:
+        raise ValueError("\n".join(errors))
+
+    source_type = normalized["source_type"]
+    source_value = normalized["source_value"]
+    camera_type = normalized["camera_type"]
+
+    if source_type == "webcam":
+        source_value = str(int(str(source_value).strip()))
+        camera_type = "stream"
+    elif source_type in {"demo_video", "local_video"}:
+        source_value = str(Path(source_value))
+        camera_type = "stream"
+
+    return DashboardSourceSettings(
+        source_type=source_type,
+        source_value=source_value,
+        camera_type=camera_type if source_type == "printer_camera" else "stream",
+    )
+
+
+def serialize_source_settings(settings: DashboardSourceSettings) -> dict[str, Any]:
+    """Return a JSON-safe source settings payload."""
+
+    return {
+        "source_type": settings.source_type,
+        "source_value": settings.source_value,
+        "camera_type": settings.camera_type,
+    }
+
+
+def build_video_source_from_settings(
+    settings: DashboardSourceSettings,
+):
+    """Build a shared `VideoSource` from dashboard runtime source settings."""
+
+    from sources import (
+        local_video_source,
+        printer_camera_source,
+        sample_video_source,
+        webcam_source,
+    )
+
+    if settings.source_type == "printer_camera":
+        return printer_camera_source(
+            url=settings.source_value,
+            camera_type=settings.camera_type,
+        )
+    if settings.source_type == "webcam":
+        return webcam_source(int(settings.source_value))
+    if settings.source_type == "demo_video":
+        return sample_video_source(Path(settings.source_value))
+    return local_video_source(Path(settings.source_value))
+
+
 class DashboardMonitoringService:
     """Manage the dashboard background AI monitoring thread."""
 
@@ -135,6 +282,7 @@ class DashboardMonitoringService:
         self._stop_event = threading.Event()
         self._detector: Any | None = None
         self._settings = DEFAULT_DASHBOARD_AI_SETTINGS
+        self._source_settings = get_default_dashboard_source_settings()
         self._alert_cooldown = AlertCooldown(
             seconds=self._settings.alert_cooldown_seconds
         )
@@ -155,24 +303,53 @@ class DashboardMonitoringService:
         # Latest JPEG bytes for MJPEG stream
         self._latest_frame_jpeg: bytes | None = None
 
-    def start(self, camera_url: str, camera_type: str = "stream") -> str | None:
+    def start(
+        self,
+        camera_url: str | None = None,
+        camera_type: str = "stream",
+    ) -> str | None:
         """Start the background monitoring thread."""
 
         with self._lock:
             if self.running:
                 return "Monitoring is already running."
-            if not camera_url.strip():
-                return "Camera URL is not configured."
 
-            self._reset_state_locked(camera_url)
+            try:
+                if camera_url is not None:
+                    if not camera_url.strip():
+                        return "Camera URL is not configured."
+                    selected_source_settings = build_source_settings(
+                        {
+                            "source_type": "printer_camera",
+                            "source_value": camera_url,
+                            "camera_type": camera_type,
+                        }
+                    )
+                else:
+                    selected_source_settings = self._source_settings
+            except ValueError as exc:
+                return str(exc)
+
+            self._source_settings = selected_source_settings
+            source = build_video_source_from_settings(selected_source_settings)
+
+            self._reset_state_locked(source.label)
+            self.running = True
             self._stop_event.clear()
+
+        capture, detector = self._setup(source)
+        if capture is None or detector is None:
+            with self._lock:
+                self.running = False
+            return self.last_error or f"Could not open selected source '{source.label}'."
+
+        with self._lock:
             self._thread = threading.Thread(
                 target=self._monitoring_loop,
-                args=(camera_url, camera_type),
+                args=(capture, detector),
                 daemon=True,
                 name="dashboard-monitoring",
             )
-            self.running = True
             self._thread.start()
             return None
 
@@ -207,6 +384,28 @@ class DashboardMonitoringService:
 
         return self.get_settings_payload()
 
+    def update_source_settings(
+        self,
+        incoming_settings: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Validate and apply runtime source settings."""
+
+        updated_source_settings = build_source_settings(incoming_settings)
+        with self._lock:
+            previous_source_settings = self._source_settings
+            self._source_settings = updated_source_settings
+            running = self.running
+
+        restart_required = running and previous_source_settings != updated_source_settings
+        return self.get_source_settings_payload(
+            restart_required=restart_required,
+            message=(
+                "Source updated. Stop and start AI monitoring to use the new source."
+                if restart_required
+                else "Source settings saved."
+            ),
+        )
+
     def get_settings_payload(self) -> dict[str, Any]:
         """Return current runtime settings plus effective auto-action state."""
 
@@ -224,6 +423,34 @@ class DashboardMonitoringService:
             ),
         }
 
+    def get_source_settings_payload(
+        self,
+        restart_required: bool = False,
+        message: str | None = None,
+    ) -> dict[str, Any]:
+        """Return current runtime source settings plus active-source info."""
+
+        with self._lock:
+            source_settings = self._source_settings
+            running = self.running
+            source_name = self.source_name
+
+        source = build_video_source_from_settings(source_settings)
+        active_source = source_name or source.label
+        message = message or (
+            "Source updated. Stop and start AI monitoring to use the new source."
+            if restart_required
+            else "Current dashboard source settings."
+        )
+        return {
+            "settings": serialize_source_settings(source_settings),
+            "active_source": active_source,
+            "source_label": source.label,
+            "restart_required": restart_required,
+            "running": running,
+            "message": message,
+        }
+
     def get_latest_frame_jpeg(self) -> bytes | None:
         """Return the latest JPEG-encoded annotated frame, or None."""
 
@@ -234,6 +461,7 @@ class DashboardMonitoringService:
 
         with self._lock:
             settings = self._settings
+            source_settings = self._source_settings
             cooldown_remaining = self._alert_cooldown.remaining_seconds(monotonic())
 
         effective = self._build_effective_settings_payload(
@@ -251,6 +479,9 @@ class DashboardMonitoringService:
             "confirmed_failure": self.confirmed_failure,
             "fail_frame_count": self.fail_frame_count,
             "consecutive_fail_frames": self.consecutive_fail_frames,
+            "source_type": source_settings.source_type,
+            "source_value": source_settings.source_value,
+            "camera_type": source_settings.camera_type,
             "last_error": self.last_error,
             "last_action_result": self.last_action_result,
             "confidence_threshold": settings.confidence_threshold,
@@ -264,18 +495,10 @@ class DashboardMonitoringService:
             "auto_action_reason": effective["auto_action_reason"],
         }
 
-    def _monitoring_loop(self, camera_url: str, camera_type: str) -> None:
-        """Background thread: open camera, run YOLO, store frames."""
+    def _monitoring_loop(self, capture: Any, detector: Any) -> None:
+        """Background thread: run YOLO and store frames for an opened source."""
 
-        capture = None
-        detector = None
         try:
-            capture, detector = self._setup(camera_url, camera_type)
-            if capture is None or detector is None:
-                with self._lock:
-                    self.running = False
-                return
-
             self._run_loop(capture, detector)
         except Exception as exc:
             logger.error("Monitoring loop crashed: %s", exc)
@@ -291,13 +514,12 @@ class DashboardMonitoringService:
                 self.running = False
                 self._detector = None
 
-    def _setup(self, camera_url: str, camera_type: str):
+    def _setup(self, source: Any):
         """Open camera and load detector. Return `(capture, detector)` or `(None, None)`."""
 
         try:
-            from sources import open_capture, printer_camera_source
+            from sources import open_capture
 
-            source = printer_camera_source(url=camera_url, camera_type=camera_type)
             capture, error = open_capture(source)
             if error:
                 with self._lock:

@@ -115,7 +115,7 @@
             <div class="status-grid">
                 <div class="status-item">
                     <span class="label">Monitoring Source:</span>
-                    <span class="value">Placeholder (Run monitoring loop)</span>
+                    <span id="config-monitoring-source" class="value">--</span>
                 </div>
                 <div class="status-item">
                     <span class="label">Confidence Threshold:</span>
@@ -186,6 +186,49 @@
             </div>
             <div id="ai-settings-errors" class="error-text"></div>
             <pre id="ai-settings-effective" class="data-preview">Loading AI settings...</pre>
+        </section>
+
+        <section class="card source-settings-card">
+            <h2>Camera / AI Source</h2>
+            <div class="settings-grid">
+                <label class="settings-grid-full">
+                    <span>Source type</span>
+                    <select id="source-type">
+                        <option value="printer_camera">Printer camera</option>
+                        <option value="webcam">Webcam</option>
+                        <option value="demo_video">Demo video</option>
+                        <option value="local_video">Local video</option>
+                    </select>
+                </label>
+                <label id="printer-camera-url-row" class="settings-grid-full">
+                    <span>Printer camera URL</span>
+                    <input type="text" id="printer-camera-url" placeholder="http://printer:8080/?action=stream">
+                </label>
+                <label id="webcam-index-row">
+                    <span>Webcam index</span>
+                    <input type="number" id="webcam-index" min="0" step="1" value="0">
+                </label>
+                <label id="camera-type-row">
+                    <span>Printer camera type</span>
+                    <select id="source-camera-type">
+                        <option value="stream">Stream</option>
+                        <option value="snapshot">Snapshot</option>
+                    </select>
+                </label>
+                <label id="demo-video-path-row" class="settings-grid-full">
+                    <span>Demo video path</span>
+                    <input type="text" id="demo-video-path">
+                </label>
+                <label id="local-video-path-row" class="settings-grid-full">
+                    <span>Local video path</span>
+                    <input type="text" id="local-video-path" placeholder="C:\\videos\\print-demo.mp4">
+                </label>
+            </div>
+            <div class="settings-actions">
+                <button id="btn-save-source-settings" class="btn">Save / Apply</button>
+            </div>
+            <div id="source-settings-errors" class="error-text"></div>
+            <pre id="source-settings-status" class="data-preview">Loading source settings...</pre>
         </section>
 
         <!-- Controls Card -->

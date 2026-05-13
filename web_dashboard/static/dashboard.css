@@ -277,6 +277,11 @@ input[type="range"] {
     min-height: 104px;
 }
 
+#source-settings-status {
+    margin-top: 10px;
+    min-height: 88px;
+}
+
 .ai-warning-box {
     display: block;
     margin-top: 14px;

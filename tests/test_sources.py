@@ -10,6 +10,7 @@ import requests
 from sources import (
     PrinterSnapshotCapture,
     SourceKind,
+    local_video_source,
     mobile_camera_source,
     open_capture,
     printer_camera_source,
@@ -72,12 +73,15 @@ def test_existing_source_builders_still_work(tmp_path) -> None:
     """Existing source constructors should keep their public behavior."""
 
     sample = sample_video_source(tmp_path / "demo.mp4")
+    local = local_video_source(tmp_path / "local.mp4")
     webcam = webcam_source()
     mobile = mobile_camera_source(" http://phone/video ")
 
     assert sample.kind == SourceKind.SAMPLE_VIDEO
     assert sample.label == "Sample video"
     assert sample.value == str(tmp_path / "demo.mp4")
+    assert local.kind == SourceKind.LOCAL_VIDEO
+    assert local.value == str(tmp_path / "local.mp4")
     assert webcam.kind == SourceKind.WEBCAM
     assert webcam.value == 0
     assert mobile.kind == SourceKind.MOBILE_URL

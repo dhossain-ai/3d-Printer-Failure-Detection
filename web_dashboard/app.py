@@ -23,7 +23,9 @@ from notifications.settings import (
 from creality_control import CrealityWebSocketControlClient
 from printer_controller import log_printer_command as log_command
 from web_dashboard.monitoring_service import (
+    get_default_dashboard_source_settings,
     get_service,
+    validate_source_settings,
     validate_ai_settings,
 )
 
@@ -72,6 +74,12 @@ class AiSettingsUpdateRequest(BaseModel):
     action_mode: str = "detection_only"
 
 
+class SourceSettingsUpdateRequest(BaseModel):
+    source_type: str = get_default_dashboard_source_settings().source_type
+    source_value: str = get_default_dashboard_source_settings().source_value
+    camera_type: str = get_default_dashboard_source_settings().camera_type
+
+
 @app.get("/")
 def read_dashboard(request: Request):
     return templates.TemplateResponse(
@@ -101,6 +109,28 @@ def get_notification_settings():
     return {
         "settings": mask_notification_settings(load_notification_settings()),
         "settings_file": str(LOCAL_NOTIFICATION_SETTINGS_PATH),
+    }
+
+
+@app.get("/api/source")
+def get_dashboard_source_settings():
+    """Return current dashboard source settings."""
+
+    return get_service().get_source_settings_payload()
+
+
+@app.post("/api/source")
+def update_dashboard_source_settings(req: SourceSettingsUpdateRequest):
+    """Validate and update dashboard runtime source settings."""
+
+    payload = req.model_dump()
+    errors = validate_source_settings(payload)
+    if errors:
+        raise HTTPException(status_code=400, detail={"errors": errors})
+
+    return {
+        "success": True,
+        **get_service().update_source_settings(payload),
     }
 
 
@@ -356,9 +386,13 @@ class AiStartRequest(BaseModel):
 def ai_start(req: AiStartRequest):
     """Start background AI monitoring. Rejects if already running."""
     service = get_service()
-    camera_url = req.camera_url.strip() or config.PRINTER_CAMERA_URL
-    camera_type = req.camera_type or config.PRINTER_CAMERA_TYPE
-    error = service.start(camera_url=camera_url, camera_type=camera_type)
+    if req.camera_url.strip():
+        error = service.start(
+            camera_url=req.camera_url.strip(),
+            camera_type=req.camera_type or config.PRINTER_CAMERA_TYPE,
+        )
+    else:
+        error = service.start()
     if error:
         raise HTTPException(status_code=409, detail=error)
     return {"success": True, "message": "AI monitoring started"}

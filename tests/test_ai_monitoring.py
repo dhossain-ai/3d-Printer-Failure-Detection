@@ -1,6 +1,7 @@
 """Tests for dashboard AI monitoring endpoints and service."""
 
 import time
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -11,6 +12,9 @@ from web_dashboard.app import app
 from web_dashboard.monitoring_service import (
     DEFAULT_DASHBOARD_AI_SETTINGS,
     DashboardMonitoringService,
+    DashboardSourceSettings,
+    get_default_dashboard_source_settings,
+    validate_source_settings,
     validate_ai_settings,
 )
 
@@ -24,6 +28,7 @@ def reset_service():
     svc = get_service()
     svc.stop()
     svc.update_settings({})
+    svc.update_source_settings({})
     svc.running = False
     svc.frames_processed = 0
     svc.last_detection_label = None
@@ -116,34 +121,121 @@ def test_ai_settings_update_affects_monitoring_service():
     assert status["action_mode"] == "pause"
 
 
+def test_get_source_returns_default_source():
+    response = client.get("/api/source")
+    assert response.status_code == 200
+    data = response.json()
+    expected = get_default_dashboard_source_settings()
+    assert data["settings"]["source_type"] == expected.source_type
+    assert data["settings"]["source_value"] == expected.source_value
+    assert data["settings"]["camera_type"] == expected.camera_type
+
+
+def test_post_source_accepts_printer_camera_url():
+    response = client.post(
+        "/api/source",
+        json={
+            "source_type": "printer_camera",
+            "source_value": "http://printer:8080/?action=stream",
+            "camera_type": "stream",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["settings"]["source_type"] == "printer_camera"
+    assert data["settings"]["source_value"] == "http://printer:8080/?action=stream"
+
+
+def test_post_source_accepts_webcam_index():
+    response = client.post(
+        "/api/source",
+        json={
+            "source_type": "webcam",
+            "source_value": "1",
+            "camera_type": "stream",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["settings"]["source_value"] == "1"
+
+
+def test_post_source_accepts_demo_and_local_video_paths(tmp_path: Path):
+    demo_path = tmp_path / "demo.mp4"
+    local_path = tmp_path / "local.mp4"
+    demo_path.write_bytes(b"demo")
+    local_path.write_bytes(b"local")
+
+    demo_response = client.post(
+        "/api/source",
+        json={
+            "source_type": "demo_video",
+            "source_value": str(demo_path),
+            "camera_type": "stream",
+        },
+    )
+    local_response = client.post(
+        "/api/source",
+        json={
+            "source_type": "local_video",
+            "source_value": str(local_path),
+            "camera_type": "stream",
+        },
+    )
+
+    assert demo_response.status_code == 200
+    assert local_response.status_code == 200
+    assert demo_response.json()["settings"]["source_type"] == "demo_video"
+    assert local_response.json()["settings"]["source_type"] == "local_video"
+
+
+def test_post_source_rejects_invalid_source_type():
+    response = client.post(
+        "/api/source",
+        json={
+            "source_type": "phone",
+            "source_value": "0",
+            "camera_type": "stream",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "Source type must be printer_camera, webcam, demo_video, or local_video." in response.json()["detail"]["errors"]
+
+
 # ---------------------------------------------------------------------------
 # /api/ai/start
 # ---------------------------------------------------------------------------
 
-def test_ai_start_rejects_missing_camera_url():
-    original = config.PRINTER_CAMERA_URL
-    config.PRINTER_CAMERA_URL = ""
-    try:
-        response = client.post("/api/ai/start", json={})
-        assert response.status_code == 409
-    finally:
-        config.PRINTER_CAMERA_URL = original
+def test_ai_start_rejects_missing_selected_source():
+    from web_dashboard.monitoring_service import get_service
+
+    svc = get_service()
+    svc._source_settings = DashboardSourceSettings(
+        source_type="local_video",
+        source_value="missing-demo.mp4",
+        camera_type="stream",
+    )
+
+    response = client.post("/api/ai/start", json={})
+
+    assert response.status_code == 409
+    assert "Local video not found" in response.json()["detail"]
 
 
 @patch("web_dashboard.monitoring_service.DashboardMonitoringService._setup")
 def test_ai_start_starts_and_rejects_double_start(mock_setup):
     """Start should succeed first time and reject on second call."""
-    # Make _setup return a no-op (won't open real camera/model)
-    mock_setup.return_value = (None, None)
-    config.PRINTER_CAMERA_URL = "http://test:8080/stream"
-    try:
-        # First call
-        response = client.post("/api/ai/start", json={})
-        # Even if _setup fails, service.running should have been set then cleared
-        # The key thing: no 500 crash
-        assert response.status_code in (200, 409)
-    finally:
-        config.PRINTER_CAMERA_URL = ""
+    fake_capture = MagicMock()
+    fake_capture.read.return_value = (False, None)
+    fake_capture.release = MagicMock()
+    fake_detector = MagicMock()
+    mock_setup.return_value = (fake_capture, fake_detector)
+
+    response = client.post("/api/ai/start", json={"camera_url": "http://test:8080/stream"})
+
+    assert response.status_code == 200
 
 
 def test_ai_start_already_running():
@@ -212,6 +304,7 @@ def test_service_get_status_structure():
         "last_detection_label", "last_detection_confidence",
         "failure_detected", "confirmed_failure", "fail_frame_count",
         "consecutive_fail_frames", "last_error", "last_action_result",
+        "source_type", "source_value", "camera_type",
         "confidence_threshold", "alert_cooldown_seconds",
         "auto_action_enabled", "action_mode", "cooldown_remaining_seconds",
         "printer_backend", "real_printer_command",
@@ -233,6 +326,18 @@ def test_service_start_rejects_double_start():
     err = svc.start(camera_url="http://test/stream")
     assert "already running" in err.lower()
     svc.running = False
+
+
+def test_validate_source_settings_reports_errors():
+    errors = validate_source_settings(
+        {
+            "source_type": "local_video",
+            "source_value": "does-not-exist.mp4",
+            "camera_type": "stream",
+        }
+    )
+
+    assert any("Local video path does not exist" in error for error in errors)
 
 
 def test_validate_ai_settings_reports_errors():
@@ -314,6 +419,79 @@ def test_service_stores_detection_result():
     assert svc.last_detection_label == "spaghetti"
     assert svc.last_detection_confidence == pytest.approx(0.82)
     assert svc.frames_processed >= 1
+
+
+def test_source_settings_update_affects_monitoring_service(tmp_path: Path):
+    local_video = tmp_path / "demo.mp4"
+    local_video.write_bytes(b"demo")
+    svc = DashboardMonitoringService()
+
+    payload = svc.update_source_settings(
+        {
+            "source_type": "local_video",
+            "source_value": str(local_video),
+            "camera_type": "stream",
+        }
+    )
+
+    assert payload["settings"]["source_type"] == "local_video"
+    assert payload["settings"]["source_value"] == str(local_video)
+    assert payload["active_source"].startswith("Local video")
+
+
+def test_source_change_while_running_requires_restart(tmp_path: Path):
+    first_video = tmp_path / "first.mp4"
+    second_video = tmp_path / "second.mp4"
+    first_video.write_bytes(b"first")
+    second_video.write_bytes(b"second")
+    svc = DashboardMonitoringService()
+    svc.update_source_settings(
+        {
+            "source_type": "local_video",
+            "source_value": str(first_video),
+            "camera_type": "stream",
+        }
+    )
+    svc.running = True
+
+    payload = svc.update_source_settings(
+        {
+            "source_type": "local_video",
+            "source_value": str(second_video),
+            "camera_type": "stream",
+        }
+    )
+
+    assert payload["restart_required"] is True
+
+
+def test_service_uses_selected_source(tmp_path: Path):
+    demo_video = tmp_path / "demo.mp4"
+    demo_video.write_bytes(b"demo")
+    svc = DashboardMonitoringService()
+    svc.update_source_settings(
+        {
+            "source_type": "demo_video",
+            "source_value": str(demo_video),
+            "camera_type": "stream",
+        }
+    )
+
+    fake_capture = MagicMock()
+    fake_capture.read.return_value = (False, None)
+    fake_capture.release = MagicMock()
+    fake_detector = MagicMock()
+
+    with patch(
+        "web_dashboard.monitoring_service.DashboardMonitoringService._setup",
+        return_value=(fake_capture, fake_detector),
+    ) as mock_setup:
+        svc.start()
+        svc.stop()
+
+    passed_source = mock_setup.call_args.args[0]
+    assert passed_source.label == "Sample video"
+    assert passed_source.value == str(demo_video)
 
 
 def test_service_updates_running_detector_threshold():

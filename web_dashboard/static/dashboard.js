@@ -2,6 +2,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let config = {};
     let controlsEnabled = false;
     let notificationSettings = null;
+    let currentSourceSettings = null;
 
     // Elements
     const elConnStatus = document.getElementById("connection-status");
@@ -45,6 +46,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const aiSettingsEffective = document.getElementById("ai-settings-effective");
     const aiStopWarning = document.getElementById("ai-stop-warning");
     const btnSaveAiSettings = document.getElementById("btn-save-ai-settings");
+    const sourceSettingsErrors = document.getElementById("source-settings-errors");
+    const sourceSettingsStatus = document.getElementById("source-settings-status");
+    const btnSaveSourceSettings = document.getElementById("btn-save-source-settings");
+    const configMonitoringSource = document.getElementById("config-monitoring-source");
 
     const notificationFields = {
         notificationsEnabled: document.getElementById("notifications-enabled"),
@@ -70,6 +75,19 @@ document.addEventListener("DOMContentLoaded", () => {
         alertCooldownSeconds: document.getElementById("ai-alert-cooldown-seconds"),
         autoActionEnabled: document.getElementById("ai-auto-action-enabled"),
         actionMode: document.getElementById("ai-action-mode"),
+    };
+    const sourceFields = {
+        sourceType: document.getElementById("source-type"),
+        printerCameraUrlRow: document.getElementById("printer-camera-url-row"),
+        printerCameraUrl: document.getElementById("printer-camera-url"),
+        webcamIndexRow: document.getElementById("webcam-index-row"),
+        webcamIndex: document.getElementById("webcam-index"),
+        cameraTypeRow: document.getElementById("camera-type-row"),
+        cameraType: document.getElementById("source-camera-type"),
+        demoVideoPathRow: document.getElementById("demo-video-path-row"),
+        demoVideoPath: document.getElementById("demo-video-path"),
+        localVideoPathRow: document.getElementById("local-video-path-row"),
+        localVideoPath: document.getElementById("local-video-path"),
     };
 
     // AI monitoring elements
@@ -102,6 +120,14 @@ document.addEventListener("DOMContentLoaded", () => {
         aiSettingsEffective.textContent = Array.isArray(lines) ? lines.join("\n") : String(lines || "");
     }
 
+    function showSourceSettingsErrors(errors) {
+        sourceSettingsErrors.textContent = Array.isArray(errors) ? errors.join("\n") : (errors || "");
+    }
+
+    function showSourceSettingsStatus(lines) {
+        sourceSettingsStatus.textContent = Array.isArray(lines) ? lines.join("\n") : String(lines || "");
+    }
+
     async function loadConfig() {
         try {
             const res = await fetch("/api/config");
@@ -123,13 +149,6 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             configDevice.textContent = config.model_device;
-
-            if (config.camera_configured && config.printer_camera_url) {
-                rawCameraHtml = `<img src="${config.printer_camera_url}" alt="Printer Camera Stream">`;
-                if (!showingAiStream) {
-                    cameraContainer.innerHTML = rawCameraHtml;
-                }
-            }
 
             // Update new config fields
             document.getElementById("config-controls").textContent = config.control_enabled ? "Yes" : "No";
@@ -175,6 +194,99 @@ document.addEventListener("DOMContentLoaded", () => {
             console.error("Failed to load notification settings", e);
             showNotificationSettingsResults(`Failed to load notification settings: ${e.message}`);
         }
+    }
+
+    function updateSourceFieldVisibility() {
+        const sourceType = sourceFields.sourceType.value;
+        sourceFields.printerCameraUrlRow.style.display = sourceType === "printer_camera" ? "flex" : "none";
+        sourceFields.webcamIndexRow.style.display = sourceType === "webcam" ? "flex" : "none";
+        sourceFields.cameraTypeRow.style.display = sourceType === "printer_camera" ? "flex" : "none";
+        sourceFields.demoVideoPathRow.style.display = sourceType === "demo_video" ? "flex" : "none";
+        sourceFields.localVideoPathRow.style.display = sourceType === "local_video" ? "flex" : "none";
+    }
+
+    function updateRawCameraPreview() {
+        if (currentSourceSettings && currentSourceSettings.source_type === "printer_camera" && currentSourceSettings.source_value) {
+            rawCameraHtml = `<img src="${currentSourceSettings.source_value}" alt="Printer Camera Stream">`;
+        } else {
+            rawCameraHtml = `<div class="placeholder">Raw browser preview is only available for printer camera URLs. Start AI monitoring to test webcam or video-file sources.</div>`;
+        }
+
+        if (!showingAiStream) {
+            cameraContainer.innerHTML = rawCameraHtml;
+        }
+    }
+
+    function formatSourceStatus(data) {
+        return [
+            `Selected source: ${data.source_label || "--"}`,
+            `Current active source: ${data.active_source || "--"}`,
+            `Running: ${data.running ? "Yes" : "No"}`,
+            `Needs restart: ${data.restart_required ? "Yes" : "No"}`,
+            `Message: ${data.message || "--"}`,
+        ];
+    }
+
+    function applySourceSettingsPayload(data) {
+        const settings = data.settings || data;
+        currentSourceSettings = settings;
+        sourceFields.sourceType.value = settings.source_type;
+        sourceFields.printerCameraUrl.value = settings.source_type === "printer_camera" ? (settings.source_value || "") : (sourceFields.printerCameraUrl.value || config.printer_camera_url || "");
+        sourceFields.webcamIndex.value = settings.source_type === "webcam" ? (settings.source_value || "0") : (sourceFields.webcamIndex.value || "0");
+        sourceFields.cameraType.value = settings.camera_type || "stream";
+        sourceFields.demoVideoPath.value = settings.source_type === "demo_video" ? (settings.source_value || "") : sourceFields.demoVideoPath.value;
+        sourceFields.localVideoPath.value = settings.source_type === "local_video" ? (settings.source_value || "") : sourceFields.localVideoPath.value;
+        updateSourceFieldVisibility();
+        updateRawCameraPreview();
+        if (data.source_label || data.active_source || data.message) {
+            showSourceSettingsStatus(formatSourceStatus(data));
+        }
+    }
+
+    async function loadSourceSettings() {
+        try {
+            const res = await fetch("/api/source");
+            const data = await res.json();
+            applySourceSettingsPayload(data);
+            showSourceSettingsErrors("");
+        } catch (e) {
+            console.error("Failed to load source settings", e);
+            showSourceSettingsStatus(`Failed to load source settings: ${e.message}`);
+        }
+    }
+
+    function collectSourcePayload() {
+        const sourceType = sourceFields.sourceType.value;
+        let sourceValue = "";
+        if (sourceType === "printer_camera") {
+            sourceValue = sourceFields.printerCameraUrl.value.trim();
+        } else if (sourceType === "webcam") {
+            sourceValue = sourceFields.webcamIndex.value.trim();
+        } else if (sourceType === "demo_video") {
+            sourceValue = sourceFields.demoVideoPath.value.trim();
+        } else {
+            sourceValue = sourceFields.localVideoPath.value.trim();
+        }
+
+        return {
+            source_type: sourceType,
+            source_value: sourceValue,
+            camera_type: sourceFields.cameraType.value,
+        };
+    }
+
+    async function postSourceSettings() {
+        const res = await fetch("/api/source", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(collectSourcePayload()),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            const errors = data.detail && data.detail.errors ? data.detail.errors : [data.detail || "Request failed"];
+            throw new Error(errors.join("\n"));
+        }
+        return data;
     }
 
     function updateStopWarning() {
@@ -557,6 +669,9 @@ document.addEventListener("DOMContentLoaded", () => {
             if (s.confidence_threshold !== undefined) {
                 document.getElementById("config-confidence").textContent = Number(s.confidence_threshold).toFixed(2);
             }
+            if (configMonitoringSource) {
+                configMonitoringSource.textContent = s.source_name || `${s.source_type || "--"}`;
+            }
             showAiSettingsEffective(formatAiEffectiveSettings({
                 confidence_threshold: s.confidence_threshold,
                 consecutive_fail_frames: s.consecutive_fail_frames,
@@ -586,6 +701,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (aiSettingsFields.actionMode) {
         aiSettingsFields.actionMode.addEventListener("change", updateStopWarning);
+    }
+
+    if (sourceFields.sourceType) {
+        sourceFields.sourceType.addEventListener("change", updateSourceFieldVisibility);
+        updateSourceFieldVisibility();
     }
 
     if (btnOpenNotificationSettings && notificationSettingsPanel) {
@@ -633,6 +753,18 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    if (btnSaveSourceSettings) {
+        btnSaveSourceSettings.addEventListener("click", async () => {
+            showSourceSettingsErrors("");
+            try {
+                const data = await postSourceSettings();
+                applySourceSettingsPayload(data);
+            } catch (e) {
+                showSourceSettingsErrors(e.message.split("\n"));
+            }
+        });
+    }
+
     // Init
     loadConfig().then(() => {
         updateStatus();
@@ -640,6 +772,7 @@ document.addEventListener("DOMContentLoaded", () => {
         loadNotifications();
         loadNotificationSettings();
         loadAiSettings();
+        loadSourceSettings();
         loadAiStatus();
         setInterval(updateStatus, 3000);
     });
