@@ -57,6 +57,7 @@ PrintSentinel is a Python MVP for camera/video-based 3D print failure detection.
 - Optional Telegram bot alerts with text or screenshot photo messages
 - Optional SMTP email alerts with text or screenshot attachments
 - Local Tkinter notification settings window with save and test controls
+- Web dashboard notification settings with masked secrets and test-send support
 - Environment flags for enabling notifications and Windows desktop alerts
 
 ## Folder Structure
@@ -438,6 +439,8 @@ Never commit bot tokens, SMTP passwords, chat IDs, or local notification setting
 
 The source selection window includes a `Notification Settings` button. It opens a local Tkinter settings window for Windows, Telegram, and SMTP email notifications. The window can save settings and send a test notification through the currently enabled providers.
 
+The FastAPI dashboard also includes a `Notification Settings` section that reuses the same local notification settings file and provider factory. Secret fields are masked in the browser and blank secret inputs keep the existing stored value instead of overwriting it.
+
 Local UI settings are saved to:
 
 ```text
@@ -538,6 +541,7 @@ PrintSentinel includes an opt-in, local-only web dashboard powered by FastAPI. T
 - Safe Creality controls (lights, fans, and file listing).
 - Recent failure events from the local `events.csv` log.
 - Recent notification history from the local `notifications.csv` log.
+- Notification settings management for Windows, Telegram, and SMTP email with masked secrets.
 - An parsed file list showing available models on the printer.
 
 To start the dashboard on port `8001`:
@@ -555,9 +559,12 @@ $env:PRINTSENTINEL_CREALITY_CONTROL_ENABLED="true"
 
 Safety Notes:
 - The dashboard is **local-only** and does not require cloud integrations.
+- Notification secrets are stored locally in `config/local_notification_settings.json`, which is gitignored.
 - It only implements safe whitelisted controls like lights, fans, and file listing.
 - The AI status shown is mostly for configuration reference. Live detection status requires running the monitoring loop alongside the dashboard.
 - **Do not expose this dashboard to the internet.** It has no authentication and could allow uncontrolled access to printer APIs on your LAN.
+
+Tkinter remains available as a fallback or legacy launcher for source selection and notification settings if you do not want to use the dashboard.
 
 ## Real Creality Pause/Stop Backend
 

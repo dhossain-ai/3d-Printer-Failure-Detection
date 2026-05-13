@@ -1,4 +1,4 @@
-"""Local notification settings persistence and validation."""
+"""Local notification settings persistence, masking, and validation."""
 
 import json
 from collections.abc import Callable, Mapping
@@ -41,6 +41,14 @@ _BOOL_KEYS = {
     "TELEGRAM_SEND_SCREENSHOT",
     "EMAIL_NOTIFICATIONS_ENABLED",
     "EMAIL_SEND_SCREENSHOT",
+}
+
+UNCHANGED_SECRET_MARKER = "__UNCHANGED__"
+_SECRET_KEYS = {
+    "TELEGRAM_BOT_TOKEN",
+    "TELEGRAM_CHAT_ID",
+    "SMTP_USERNAME",
+    "SMTP_PASSWORD",
 }
 
 
@@ -225,6 +233,81 @@ def send_test_notification(
     return manager_factory(providers).send_failure_alert(notification)
 
 
+def merge_notification_settings_update(
+    current_settings: Mapping[str, Any],
+    incoming_settings: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Merge an update payload into existing settings while preserving secrets."""
+
+    merged = normalize_notification_settings(current_settings)
+    for key, value in incoming_settings.items():
+        if key not in DEFAULT_LOCAL_NOTIFICATION_SETTINGS:
+            continue
+
+        if key in _SECRET_KEYS and _is_secret_unchanged(value, merged.get(key, "")):
+            continue
+
+        merged[key] = value
+
+    return normalize_notification_settings(merged)
+
+
+def mask_notification_settings(settings: Mapping[str, Any]) -> dict[str, Any]:
+    """Return a frontend-safe notification settings payload."""
+
+    normalized = normalize_notification_settings(settings)
+    return {
+        "notifications_enabled": normalized["NOTIFICATIONS_ENABLED"],
+        "windows_enabled": normalized["WINDOWS_NOTIFICATIONS_ENABLED"],
+        "telegram_enabled": normalized["TELEGRAM_NOTIFICATIONS_ENABLED"],
+        "telegram_bot_token_masked": mask_secret(normalized["TELEGRAM_BOT_TOKEN"]),
+        "telegram_chat_id_masked": mask_secret(normalized["TELEGRAM_CHAT_ID"]),
+        "telegram_send_screenshot": normalized["TELEGRAM_SEND_SCREENSHOT"],
+        "email_enabled": normalized["EMAIL_NOTIFICATIONS_ENABLED"],
+        "smtp_host": normalized["SMTP_HOST"],
+        "smtp_port": normalized["SMTP_PORT"],
+        "smtp_security": normalized["SMTP_SECURITY"],
+        "smtp_username_masked": mask_secret(normalized["SMTP_USERNAME"]),
+        "smtp_password_masked": mask_secret(normalized["SMTP_PASSWORD"]),
+        "email_from": normalized["EMAIL_FROM"],
+        "email_to": normalized["EMAIL_TO"],
+        "email_send_screenshot": normalized["EMAIL_SEND_SCREENSHOT"],
+    }
+
+
+def sanitize_notification_results(
+    results: list[NotificationResult],
+    settings: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Return notification results with secrets removed from messages."""
+
+    normalized = normalize_notification_settings(settings)
+    redactions = [str(normalized.get(key, "")).strip() for key in _SECRET_KEYS]
+    sanitized_results: list[dict[str, Any]] = []
+    for result in results:
+        sanitized_results.append(
+            {
+                "provider": result.provider,
+                "destination_id": _sanitize_text(result.destination_id, redactions),
+                "success": result.success,
+                "message": _sanitize_text(result.message, redactions),
+            }
+        )
+    return sanitized_results
+
+
+def mask_secret(value: str) -> str:
+    """Mask a secret for UI display."""
+
+    secret = str(value).strip()
+    if not secret:
+        return ""
+    if len(secret) <= 4:
+        return "*" * len(secret)
+    visible = min(2, len(secret) // 4)
+    return f"{secret[:visible]}{'*' * (len(secret) - (visible * 2))}{secret[-visible:]}"
+
+
 def _coerce_bool(value: Any) -> bool:
     """Coerce common UI/env boolean values."""
 
@@ -269,3 +352,27 @@ def _safe_float(value: Any, default: float) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _is_secret_unchanged(value: Any, current_value: Any) -> bool:
+    """Return whether an incoming secret field should preserve the current secret."""
+
+    incoming_text = str(value).strip()
+    current_text = str(current_value).strip()
+    if not incoming_text:
+        return True
+    if incoming_text == UNCHANGED_SECRET_MARKER:
+        return True
+    if current_text and incoming_text == mask_secret(current_text):
+        return True
+    return False
+
+
+def _sanitize_text(value: str, redactions: list[str]) -> str:
+    """Remove configured secrets from a string value."""
+
+    sanitized = str(value)
+    for secret in redactions:
+        if secret:
+            sanitized = sanitized.replace(secret, "[redacted]")
+    return sanitized

@@ -1,10 +1,14 @@
 """Tests for local web dashboard."""
 
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import config
+import notifications.settings as notification_settings
+from notifications.models import NotificationResult
 from web_dashboard.app import app
 from creality_control import CrealityCommandResult
 
@@ -241,3 +245,212 @@ def test_dashboard_stop_print(mock_client_class):
     assert response.status_code == 200
     assert response.json()["success"] is True
     mock_instance.stop_print.assert_called_once()
+
+
+def _load_settings_from(path: Path):
+    return notification_settings.load_notification_settings(path=path)
+
+
+def _save_settings_to(settings, path: Path):
+    return notification_settings.save_notification_settings(settings, path=path)
+
+
+def test_get_notification_settings_masks_secrets(tmp_path: Path):
+    settings_path = tmp_path / "config" / "local_notification_settings.json"
+    notification_settings.save_notification_settings(
+        {
+            "NOTIFICATIONS_ENABLED": True,
+            "TELEGRAM_NOTIFICATIONS_ENABLED": True,
+            "TELEGRAM_BOT_TOKEN": "123456:SECRET",
+            "TELEGRAM_CHAT_ID": "987654321",
+            "EMAIL_NOTIFICATIONS_ENABLED": True,
+            "SMTP_HOST": "smtp.example.com",
+            "SMTP_PORT": 465,
+            "SMTP_SECURITY": "ssl",
+            "SMTP_USERNAME": "printer@example.com",
+            "SMTP_PASSWORD": "email-secret",
+            "EMAIL_FROM": "printer@example.com",
+            "EMAIL_TO": "ops@example.com",
+        },
+        path=settings_path,
+    )
+
+    with (
+        patch("web_dashboard.app.LOCAL_NOTIFICATION_SETTINGS_PATH", settings_path),
+        patch("web_dashboard.app.load_notification_settings", side_effect=lambda: _load_settings_from(settings_path)),
+    ):
+        response = client.get("/api/settings/notifications")
+
+    assert response.status_code == 200
+    data = response.json()
+    settings = data["settings"]
+    assert settings["notifications_enabled"] is True
+    assert settings["telegram_enabled"] is True
+    assert settings["telegram_bot_token_masked"] != "123456:SECRET"
+    assert settings["smtp_password_masked"] != "email-secret"
+    assert "telegram_bot_token" not in settings
+    assert "smtp_password" not in settings
+
+
+def test_post_notification_settings_validates_telegram_config(tmp_path: Path):
+    settings_path = tmp_path / "config" / "local_notification_settings.json"
+
+    with (
+        patch("web_dashboard.app.load_notification_settings", side_effect=lambda: _load_settings_from(settings_path)),
+        patch("web_dashboard.app.save_notification_settings", side_effect=lambda settings: _save_settings_to(settings, settings_path)),
+    ):
+        response = client.post(
+            "/api/settings/notifications",
+            json={
+                "notifications_enabled": True,
+                "telegram_enabled": True,
+            },
+        )
+
+    assert response.status_code == 400
+    errors = response.json()["detail"]["errors"]
+    assert "Telegram bot token is required when Telegram is enabled." in errors
+    assert "Telegram chat ID is required when Telegram is enabled." in errors
+
+
+def test_post_notification_settings_validates_email_config(tmp_path: Path):
+    settings_path = tmp_path / "config" / "local_notification_settings.json"
+
+    with (
+        patch("web_dashboard.app.load_notification_settings", side_effect=lambda: _load_settings_from(settings_path)),
+        patch("web_dashboard.app.save_notification_settings", side_effect=lambda settings: _save_settings_to(settings, settings_path)),
+    ):
+        response = client.post(
+            "/api/settings/notifications",
+            json={
+                "notifications_enabled": True,
+                "email_enabled": True,
+                "smtp_port": "not-a-number",
+            },
+        )
+
+    assert response.status_code == 400
+    errors = response.json()["detail"]["errors"]
+    assert "SMTP host is required when email is enabled." in errors
+    assert "SMTP port must be a positive number." in errors
+    assert "At least one recipient email is required when email is enabled." in errors
+
+
+def test_post_notification_settings_saves_safe_settings(tmp_path: Path):
+    settings_path = tmp_path / "config" / "local_notification_settings.json"
+
+    with (
+        patch("web_dashboard.app.load_notification_settings", side_effect=lambda: _load_settings_from(settings_path)),
+        patch("web_dashboard.app.save_notification_settings", side_effect=lambda settings: _save_settings_to(settings, settings_path)),
+    ):
+        response = client.post(
+            "/api/settings/notifications",
+            json={
+                "notifications_enabled": True,
+                "windows_enabled": True,
+                "email_enabled": True,
+                "smtp_host": "smtp.example.com",
+                "smtp_port": "587",
+                "smtp_security": "starttls",
+                "smtp_username": "printer@example.com",
+                "smtp_password": "topsecret",
+                "email_from": "printer@example.com",
+                "email_to": "ops@example.com,qa@example.com",
+                "email_send_screenshot": False,
+            },
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
+    assert data["settings"]["smtp_password_masked"] != "topsecret"
+
+    saved = notification_settings.load_notification_settings(settings_path)
+    assert saved["NOTIFICATIONS_ENABLED"] is True
+    assert saved["WINDOWS_NOTIFICATIONS_ENABLED"] is True
+    assert saved["SMTP_PORT"] == 587
+    assert saved["SMTP_PASSWORD"] == "topsecret"
+
+
+def test_post_notification_settings_blank_secret_keeps_existing(tmp_path: Path):
+    settings_path = tmp_path / "config" / "local_notification_settings.json"
+    notification_settings.save_notification_settings(
+        {
+            "NOTIFICATIONS_ENABLED": True,
+            "TELEGRAM_NOTIFICATIONS_ENABLED": True,
+            "TELEGRAM_BOT_TOKEN": "keep-me",
+            "TELEGRAM_CHAT_ID": "chat-1",
+        },
+        path=settings_path,
+    )
+
+    with (
+        patch("web_dashboard.app.load_notification_settings", side_effect=lambda: _load_settings_from(settings_path)),
+        patch("web_dashboard.app.save_notification_settings", side_effect=lambda settings: _save_settings_to(settings, settings_path)),
+    ):
+        response = client.post(
+            "/api/settings/notifications",
+            json={
+                "notifications_enabled": True,
+                "telegram_enabled": True,
+                "telegram_bot_token": "",
+                "telegram_chat_id": "",
+            },
+        )
+
+    assert response.status_code == 200
+    saved = notification_settings.load_notification_settings(settings_path)
+    assert saved["TELEGRAM_BOT_TOKEN"] == "keep-me"
+    assert saved["TELEGRAM_CHAT_ID"] == "chat-1"
+
+
+def test_notification_test_endpoint_uses_mocked_results_and_redacts_secrets(
+    tmp_path: Path,
+):
+    settings_path = tmp_path / "config" / "local_notification_settings.json"
+    notification_settings.save_notification_settings(
+        {
+            "NOTIFICATIONS_ENABLED": True,
+            "TELEGRAM_NOTIFICATIONS_ENABLED": True,
+            "TELEGRAM_BOT_TOKEN": "secret-token",
+            "TELEGRAM_CHAT_ID": "secret-chat",
+        },
+        path=settings_path,
+    )
+
+    mocked_results = [
+        NotificationResult(
+            provider="telegram",
+            destination_id="secret-chat",
+            success=False,
+            message="request failed for secret-token",
+        ),
+        NotificationResult(
+            provider="email",
+            destination_id="ops@example.com",
+            success=True,
+            message="ok",
+        ),
+    ]
+
+    with (
+        patch("web_dashboard.app.load_notification_settings", side_effect=lambda: _load_settings_from(settings_path)),
+        patch("web_dashboard.app.send_test_notification", return_value=mocked_results) as mock_send,
+    ):
+        response = client.post(
+            "/api/settings/notifications/test",
+            json={
+                "notifications_enabled": True,
+                "telegram_enabled": True,
+                "telegram_bot_token": "",
+                "telegram_chat_id": "",
+            },
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert mock_send.called
+    assert data["success"] is True
+    assert len(data["results"]) == 2
+    assert "secret-token" not in str(data)
+    assert "secret-chat" not in str(data)

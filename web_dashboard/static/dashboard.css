@@ -60,6 +60,13 @@ h1 {
     box-shadow: 0 4px 6px rgba(0,0,0,0.3);
 }
 
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
 h2 {
     margin-top: 0;
     font-size: 1.2rem;
@@ -205,4 +212,66 @@ input[type="range"] {
 .active-tab {
     opacity: 1;
     border-bottom: 2px solid var(--accent);
+}
+
+.settings-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 18px;
+}
+
+.settings-grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.settings-grid input,
+.settings-grid select {
+    background-color: #161616;
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 9px 10px;
+    font-size: 0.95rem;
+}
+
+.settings-checkbox {
+    flex-direction: row !important;
+    align-items: center;
+    gap: 10px !important;
+    color: var(--text-primary) !important;
+}
+
+.settings-checkbox input {
+    width: auto;
+    margin: 0;
+}
+
+.settings-grid-full {
+    grid-column: 1 / -1;
+}
+
+.settings-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+#notification-settings-results {
+    margin-top: 10px;
+    min-height: 72px;
+}
+
+@media (max-width: 768px) {
+    .settings-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .section-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
 }

@@ -224,7 +224,10 @@
 
         <!-- Recent Notifications Table -->
         <section class="card notifications-card" style="grid-column: 1 / -1;">
-            <h2>Recent Notifications</h2>
+            <div class="section-header">
+                <h2>Recent Notifications</h2>
+                <button id="btn-open-notification-settings" class="btn btn-sm">Notification Settings</button>
+            </div>
             <div style="overflow-x: auto;">
                 <table id="notifications-table" class="data-table">
                     <thead>
@@ -240,6 +243,82 @@
                     </tbody>
                 </table>
             </div>
+        </section>
+
+        <section id="notification-settings-panel" class="card notification-settings-card" style="grid-column: 1 / -1;">
+            <h2>Notification Settings</h2>
+            <div class="settings-grid">
+                <label class="settings-checkbox">
+                    <input type="checkbox" id="notifications-enabled">
+                    <span>Enable notifications</span>
+                </label>
+                <label class="settings-checkbox">
+                    <input type="checkbox" id="windows-enabled">
+                    <span>Enable Windows desktop notifications</span>
+                </label>
+                <label class="settings-checkbox">
+                    <input type="checkbox" id="telegram-enabled">
+                    <span>Enable Telegram notifications</span>
+                </label>
+                <label>
+                    <span>Telegram bot token</span>
+                    <input type="password" id="telegram-bot-token" placeholder="Leave blank to keep existing token">
+                </label>
+                <label>
+                    <span>Telegram chat ID</span>
+                    <input type="text" id="telegram-chat-id" placeholder="Leave blank to keep existing chat ID">
+                </label>
+                <label class="settings-checkbox">
+                    <input type="checkbox" id="telegram-send-screenshot">
+                    <span>Send Telegram screenshot</span>
+                </label>
+                <label class="settings-checkbox">
+                    <input type="checkbox" id="email-enabled">
+                    <span>Enable email notifications</span>
+                </label>
+                <label>
+                    <span>SMTP host</span>
+                    <input type="text" id="smtp-host">
+                </label>
+                <label>
+                    <span>SMTP port</span>
+                    <input type="number" id="smtp-port" min="1" step="1">
+                </label>
+                <label>
+                    <span>SMTP security</span>
+                    <select id="smtp-security">
+                        <option value="ssl">SSL</option>
+                        <option value="starttls">STARTTLS</option>
+                        <option value="none">None</option>
+                    </select>
+                </label>
+                <label>
+                    <span>SMTP username</span>
+                    <input type="text" id="smtp-username" placeholder="Leave blank to keep existing username">
+                </label>
+                <label>
+                    <span>SMTP password</span>
+                    <input type="password" id="smtp-password" placeholder="Leave blank to keep existing password">
+                </label>
+                <label>
+                    <span>From email</span>
+                    <input type="email" id="email-from">
+                </label>
+                <label class="settings-grid-full">
+                    <span>Recipients (comma-separated)</span>
+                    <input type="text" id="email-to">
+                </label>
+                <label class="settings-checkbox settings-grid-full">
+                    <input type="checkbox" id="email-send-screenshot">
+                    <span>Send email screenshot</span>
+                </label>
+            </div>
+            <div class="settings-actions">
+                <button id="btn-save-notification-settings" class="btn">Save</button>
+                <button id="btn-test-notification-settings" class="btn">Test Notification</button>
+            </div>
+            <div id="notification-settings-errors" class="error-text"></div>
+            <pre id="notification-settings-results" class="data-preview">Loading notification settings...</pre>
         </section>
     </main>
 

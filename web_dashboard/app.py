@@ -1,13 +1,24 @@
 """FastAPI application for PrintSentinel dashboard."""
 
-from fastapi import FastAPI, Request, HTTPException
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
-from pathlib import Path
 
 import config
 from creality_status import fetch_creality_status
+from notifications.settings import (
+    LOCAL_NOTIFICATION_SETTINGS_PATH,
+    load_notification_settings,
+    mask_notification_settings,
+    merge_notification_settings_update,
+    sanitize_notification_results,
+    save_notification_settings,
+    send_test_notification,
+    validate_notification_settings,
+)
 from creality_control import CrealityWebSocketControlClient
 from printer_controller import log_printer_command as log_command
 
@@ -30,6 +41,24 @@ class StopRequest(BaseModel):
     confirm: str
 
 
+class NotificationSettingsUpdateRequest(BaseModel):
+    notifications_enabled: bool = False
+    windows_enabled: bool = False
+    telegram_enabled: bool = False
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+    telegram_send_screenshot: bool = True
+    email_enabled: bool = False
+    smtp_host: str = ""
+    smtp_port: str | int = 465
+    smtp_security: str = "ssl"
+    smtp_username: str = ""
+    smtp_password: str = ""
+    email_from: str = ""
+    email_to: str = ""
+    email_send_screenshot: bool = True
+
+
 @app.get("/")
 def read_dashboard(request: Request):
     return templates.TemplateResponse(
@@ -49,6 +78,68 @@ def get_config():
         "model_device": config.MODEL_DEVICE,
         "printer_camera_url": config.PRINTER_CAMERA_URL,
         "notifications_enabled": config.NOTIFICATIONS_ENABLED,
+    }
+
+
+@app.get("/api/settings/notifications")
+def get_notification_settings():
+    """Return masked local notification settings for the dashboard."""
+
+    return {
+        "settings": mask_notification_settings(load_notification_settings()),
+        "settings_file": str(LOCAL_NOTIFICATION_SETTINGS_PATH),
+    }
+
+
+@app.post("/api/settings/notifications")
+def save_dashboard_notification_settings(
+    req: NotificationSettingsUpdateRequest,
+):
+    """Validate and save local notification settings from the dashboard."""
+
+    current_settings = load_notification_settings()
+    merged_settings = merge_notification_settings_update(
+        current_settings=current_settings,
+        incoming_settings=_api_request_to_local_settings(req),
+    )
+    errors = validate_notification_settings(merged_settings)
+    if errors:
+        raise HTTPException(status_code=400, detail={"errors": errors})
+
+    try:
+        saved_settings = save_notification_settings(merged_settings)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail={"errors": str(exc).splitlines()},
+        ) from exc
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Notification settings could not be saved.",
+        ) from exc
+
+    return {
+        "success": True,
+        "settings": mask_notification_settings(saved_settings),
+    }
+
+
+@app.post("/api/settings/notifications/test")
+def test_dashboard_notification_settings(
+    req: NotificationSettingsUpdateRequest,
+):
+    """Send a sanitized test notification using the shared notification flow."""
+
+    current_settings = load_notification_settings()
+    merged_settings = merge_notification_settings_update(
+        current_settings=current_settings,
+        incoming_settings=_api_request_to_local_settings(req),
+    )
+    results = send_test_notification(merged_settings)
+    return {
+        "success": any(result.success for result in results) if results else False,
+        "results": sanitize_notification_results(results, merged_settings),
     }
 
 
@@ -188,6 +279,30 @@ def get_recent_notifications():
     notifications_path = config.LOGS_DIR / "notifications.csv"
     notifications = read_recent_csv(notifications_path)
     return {"notifications": notifications}
+
+
+def _api_request_to_local_settings(
+    req: NotificationSettingsUpdateRequest,
+) -> dict[str, object]:
+    """Map dashboard request fields to local notification settings keys."""
+
+    return {
+        "NOTIFICATIONS_ENABLED": req.notifications_enabled,
+        "WINDOWS_NOTIFICATIONS_ENABLED": req.windows_enabled,
+        "TELEGRAM_NOTIFICATIONS_ENABLED": req.telegram_enabled,
+        "TELEGRAM_BOT_TOKEN": req.telegram_bot_token,
+        "TELEGRAM_CHAT_ID": req.telegram_chat_id,
+        "TELEGRAM_SEND_SCREENSHOT": req.telegram_send_screenshot,
+        "EMAIL_NOTIFICATIONS_ENABLED": req.email_enabled,
+        "SMTP_HOST": req.smtp_host,
+        "SMTP_PORT": req.smtp_port,
+        "SMTP_SECURITY": req.smtp_security,
+        "SMTP_USERNAME": req.smtp_username,
+        "SMTP_PASSWORD": req.smtp_password,
+        "EMAIL_FROM": req.email_from,
+        "EMAIL_TO": req.email_to,
+        "EMAIL_SEND_SCREENSHOT": req.email_send_screenshot,
+    }
 
 
 # ---------------------------------------------------------------------------

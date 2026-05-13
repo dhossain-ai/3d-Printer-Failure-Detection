@@ -6,7 +6,11 @@ from notifications.models import FailureNotification, NotificationResult
 from notifications.settings import (
     DEFAULT_LOCAL_NOTIFICATION_SETTINGS,
     load_notification_settings,
+    mask_notification_settings,
+    mask_secret,
+    merge_notification_settings_update,
     parse_recipient_emails,
+    sanitize_notification_results,
     save_notification_settings,
     send_test_notification,
     validate_notification_settings,
@@ -163,3 +167,65 @@ def test_send_test_notification_uses_provider_factory_and_manager() -> None:
     assert captured_notifications[0].source == "Notification settings"
     assert captured_notifications[0].label == "test"
     assert results[0].success
+
+
+def test_merge_notification_settings_update_keeps_existing_blank_secret() -> None:
+    """Blank secret updates should preserve the current stored secret."""
+
+    merged = merge_notification_settings_update(
+        current_settings={
+            "TELEGRAM_BOT_TOKEN": "secret-token",
+            "SMTP_PASSWORD": "secret-password",
+        },
+        incoming_settings={
+            "TELEGRAM_BOT_TOKEN": "",
+            "SMTP_PASSWORD": "",
+        },
+    )
+
+    assert merged["TELEGRAM_BOT_TOKEN"] == "secret-token"
+    assert merged["SMTP_PASSWORD"] == "secret-password"
+
+
+def test_mask_notification_settings_hides_secrets() -> None:
+    """Masked settings payloads should not expose raw secrets."""
+
+    masked = mask_notification_settings(
+        {
+            "NOTIFICATIONS_ENABLED": True,
+            "TELEGRAM_BOT_TOKEN": "123456:ABCDEF",
+            "TELEGRAM_CHAT_ID": "chat-1234",
+            "SMTP_USERNAME": "printer@example.com",
+            "SMTP_PASSWORD": "super-secret",
+        }
+    )
+
+    assert masked["telegram_bot_token_masked"] == mask_secret("123456:ABCDEF")
+    assert masked["smtp_password_masked"] == mask_secret("super-secret")
+    assert "123456:ABCDEF" not in masked.values()
+    assert "super-secret" not in masked.values()
+
+
+def test_sanitize_notification_results_redacts_secret_text() -> None:
+    """API result messages should redact configured secrets."""
+
+    results = sanitize_notification_results(
+        [
+            NotificationResult(
+                provider="telegram",
+                destination_id="secret-chat",
+                success=False,
+                message="failed with secret-token and secret-password",
+            )
+        ],
+        {
+            "TELEGRAM_BOT_TOKEN": "secret-token",
+            "TELEGRAM_CHAT_ID": "secret-chat",
+            "SMTP_PASSWORD": "secret-password",
+        },
+    )
+
+    assert "[redacted]" in results[0]["message"]
+    assert "secret-token" not in results[0]["message"]
+    assert "secret-password" not in results[0]["message"]
+    assert "secret-chat" not in results[0]["destination_id"]

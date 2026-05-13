@@ -1,6 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
     let config = {};
     let controlsEnabled = false;
+    let notificationSettings = null;
 
     // Elements
     const elConnStatus = document.getElementById("connection-status");
@@ -34,6 +35,30 @@ document.addEventListener("DOMContentLoaded", () => {
     const filesPreview = document.getElementById("files-preview");
     const cameraContainer = document.getElementById("camera-container");
     const configDevice = document.getElementById("config-device");
+    const btnOpenNotificationSettings = document.getElementById("btn-open-notification-settings");
+    const notificationSettingsPanel = document.getElementById("notification-settings-panel");
+    const notificationSettingsErrors = document.getElementById("notification-settings-errors");
+    const notificationSettingsResults = document.getElementById("notification-settings-results");
+    const btnSaveNotificationSettings = document.getElementById("btn-save-notification-settings");
+    const btnTestNotificationSettings = document.getElementById("btn-test-notification-settings");
+
+    const notificationFields = {
+        notificationsEnabled: document.getElementById("notifications-enabled"),
+        windowsEnabled: document.getElementById("windows-enabled"),
+        telegramEnabled: document.getElementById("telegram-enabled"),
+        telegramBotToken: document.getElementById("telegram-bot-token"),
+        telegramChatId: document.getElementById("telegram-chat-id"),
+        telegramSendScreenshot: document.getElementById("telegram-send-screenshot"),
+        emailEnabled: document.getElementById("email-enabled"),
+        smtpHost: document.getElementById("smtp-host"),
+        smtpPort: document.getElementById("smtp-port"),
+        smtpSecurity: document.getElementById("smtp-security"),
+        smtpUsername: document.getElementById("smtp-username"),
+        smtpPassword: document.getElementById("smtp-password"),
+        emailFrom: document.getElementById("email-from"),
+        emailTo: document.getElementById("email-to"),
+        emailSendScreenshot: document.getElementById("email-send-screenshot"),
+    };
 
     // AI monitoring elements
     const btnCamRaw = document.getElementById("btn-cam-raw");
@@ -47,6 +72,14 @@ document.addEventListener("DOMContentLoaded", () => {
     function showError(msg) {
         elError.textContent = msg;
         setTimeout(() => { elError.textContent = ""; }, 5000);
+    }
+
+    function showNotificationSettingsErrors(errors) {
+        notificationSettingsErrors.textContent = Array.isArray(errors) ? errors.join("\n") : (errors || "");
+    }
+
+    function showNotificationSettingsResults(lines) {
+        notificationSettingsResults.textContent = Array.isArray(lines) ? lines.join("\n") : String(lines || "");
     }
 
     async function loadConfig() {
@@ -86,6 +119,71 @@ document.addEventListener("DOMContentLoaded", () => {
         } catch (e) {
             console.error("Failed to load config", e);
         }
+    }
+
+    function applyNotificationSettings(settings) {
+        notificationSettings = settings;
+        notificationFields.notificationsEnabled.checked = !!settings.notifications_enabled;
+        notificationFields.windowsEnabled.checked = !!settings.windows_enabled;
+        notificationFields.telegramEnabled.checked = !!settings.telegram_enabled;
+        notificationFields.telegramBotToken.value = "";
+        notificationFields.telegramBotToken.placeholder = settings.telegram_bot_token_masked || "Leave blank to keep existing token";
+        notificationFields.telegramChatId.value = "";
+        notificationFields.telegramChatId.placeholder = settings.telegram_chat_id_masked || "Leave blank to keep existing chat ID";
+        notificationFields.telegramSendScreenshot.checked = !!settings.telegram_send_screenshot;
+        notificationFields.emailEnabled.checked = !!settings.email_enabled;
+        notificationFields.smtpHost.value = settings.smtp_host || "";
+        notificationFields.smtpPort.value = settings.smtp_port || 465;
+        notificationFields.smtpSecurity.value = settings.smtp_security || "ssl";
+        notificationFields.smtpUsername.value = "";
+        notificationFields.smtpUsername.placeholder = settings.smtp_username_masked || "Leave blank to keep existing username";
+        notificationFields.smtpPassword.value = "";
+        notificationFields.smtpPassword.placeholder = settings.smtp_password_masked || "Leave blank to keep existing password";
+        notificationFields.emailFrom.value = settings.email_from || "";
+        notificationFields.emailTo.value = settings.email_to || "";
+        notificationFields.emailSendScreenshot.checked = !!settings.email_send_screenshot;
+    }
+
+    async function loadNotificationSettings() {
+        try {
+            const res = await fetch("/api/settings/notifications");
+            const data = await res.json();
+            applyNotificationSettings(data.settings);
+            showNotificationSettingsErrors("");
+            showNotificationSettingsResults(`Local settings file: ${data.settings_file}`);
+        } catch (e) {
+            console.error("Failed to load notification settings", e);
+            showNotificationSettingsResults(`Failed to load notification settings: ${e.message}`);
+        }
+    }
+
+    function collectNotificationPayload() {
+        return {
+            notifications_enabled: notificationFields.notificationsEnabled.checked,
+            windows_enabled: notificationFields.windowsEnabled.checked,
+            telegram_enabled: notificationFields.telegramEnabled.checked,
+            telegram_bot_token: notificationFields.telegramBotToken.value.trim(),
+            telegram_chat_id: notificationFields.telegramChatId.value.trim(),
+            telegram_send_screenshot: notificationFields.telegramSendScreenshot.checked,
+            email_enabled: notificationFields.emailEnabled.checked,
+            smtp_host: notificationFields.smtpHost.value.trim(),
+            smtp_port: notificationFields.smtpPort.value.trim(),
+            smtp_security: notificationFields.smtpSecurity.value,
+            smtp_username: notificationFields.smtpUsername.value.trim(),
+            smtp_password: notificationFields.smtpPassword.value,
+            email_from: notificationFields.emailFrom.value.trim(),
+            email_to: notificationFields.emailTo.value.trim(),
+            email_send_screenshot: notificationFields.emailSendScreenshot.checked,
+        };
+    }
+
+    function formatNotificationResults(results) {
+        if (!results || results.length === 0) {
+            return ["No notification providers are enabled."];
+        }
+        return results.map((result) => (
+            `${result.provider}/${result.destination_id}: ${result.success ? "success" : "failed"} - ${result.message}`
+        ));
     }
 
     async function updateStatus() {
@@ -271,6 +369,20 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    async function postNotificationSettings(url) {
+        const res = await fetch(url, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(collectNotificationPayload()),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            const errors = data.detail && data.detail.errors ? data.detail.errors : [data.detail || "Request failed"];
+            throw new Error(errors.join("\n"));
+        }
+        return data;
+    }
+
     // AI Start / Stop
     if (btnAiStart) {
         btnAiStart.addEventListener("click", async () => {
@@ -353,11 +465,45 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    if (btnOpenNotificationSettings && notificationSettingsPanel) {
+        btnOpenNotificationSettings.addEventListener("click", () => {
+            notificationSettingsPanel.scrollIntoView({behavior: "smooth", block: "start"});
+        });
+    }
+
+    if (btnSaveNotificationSettings) {
+        btnSaveNotificationSettings.addEventListener("click", async () => {
+            showNotificationSettingsErrors("");
+            try {
+                const data = await postNotificationSettings("/api/settings/notifications");
+                applyNotificationSettings(data.settings);
+                showNotificationSettingsResults("Notification settings saved.");
+            } catch (e) {
+                showNotificationSettingsErrors(e.message.split("\n"));
+                showNotificationSettingsResults("Notification settings were not saved.");
+            }
+        });
+    }
+
+    if (btnTestNotificationSettings) {
+        btnTestNotificationSettings.addEventListener("click", async () => {
+            showNotificationSettingsErrors("");
+            try {
+                const data = await postNotificationSettings("/api/settings/notifications/test");
+                showNotificationSettingsResults(formatNotificationResults(data.results));
+            } catch (e) {
+                showNotificationSettingsErrors(e.message.split("\n"));
+                showNotificationSettingsResults("Test notification failed validation.");
+            }
+        });
+    }
+
     // Init
     loadConfig().then(() => {
         updateStatus();
         loadEvents();
         loadNotifications();
+        loadNotificationSettings();
         loadAiStatus();
         setInterval(updateStatus, 3000);
     });
