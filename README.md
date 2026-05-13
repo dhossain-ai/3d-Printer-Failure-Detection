@@ -680,6 +680,46 @@ dataset/metadata/captures.jsonl
 
 Generated dataset images and JSONL metadata are ignored by Git by default. This feature is for future model tuning or fine-tuning analysis only; it does not retrain the model or change the active YOLO weights.
 
+## Dataset Review and Export
+
+Captured dashboard frames can be reviewed and exported offline before any future annotation or fine-tuning work. This phase only prepares data; it does not train, fine-tune, or replace the active model.
+
+Review the current capture metadata:
+
+```powershell
+python tools/review_dataset.py
+```
+
+The review prints total captures, category balance, source types, labels seen, confidence min/max/average when available, malformed JSONL lines skipped, and missing frame/crop references.
+
+Export captures into a clean folder for future annotation or training preparation:
+
+```powershell
+python tools/export_dataset.py
+```
+
+By default, exports are written under:
+
+```text
+dataset/exports/<timestamp>/
+  images/
+    false_positive/
+    true_failure/
+    normal/
+    unsure/
+  metadata/
+    captures.jsonl
+    summary.json
+```
+
+You can choose a manual output folder:
+
+```powershell
+python tools/export_dataset.py --output dataset/exports/manual_export
+```
+
+The exporter copies available raw frame images into category folders, copies the original metadata JSONL, writes a review summary, and skips missing source images without modifying original captures. Generated export folders are ignored by Git.
+
 ## ROI / Detection Zone Controls
 
 The dashboard `AI Tuning & Safety` panel includes optional ROI controls that limit detection to a normalized region of the frame. ROI is disabled by default, so existing monitoring behavior is unchanged unless you enable it.
