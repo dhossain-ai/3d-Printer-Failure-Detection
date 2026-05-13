@@ -536,13 +536,15 @@ Each monitoring run prints a terminal summary at shutdown and writes a small JSO
 
 ## Local Web Dashboard
 
-PrintSentinel includes an opt-in, local-only web dashboard powered by FastAPI. The dashboard provides:
+PrintSentinel includes an opt-in, local-only web dashboard powered by FastAPI. The dashboard is now the primary local UI and provides:
 - Real-time monitoring of printer status and camera feeds.
-- Safe Creality controls (lights, fans, and file listing).
+- Integrated AI monitoring controls, tuning, ROI configuration, and safety mode visibility.
+- Safe Creality controls (lights, fans, file listing, and explicit pause/stop actions when enabled).
+- Dataset capture actions for false positives, true failures, normal frames, and unsure samples.
 - Recent failure events from the local `events.csv` log.
 - Recent notification history from the local `notifications.csv` log.
 - Notification settings management for Windows, Telegram, and SMTP email with masked secrets.
-- An parsed file list showing available models on the printer.
+- A parsed file list showing available models on the printer.
 
 To start the dashboard on port `8001`:
 
@@ -564,7 +566,7 @@ Safety Notes:
 - The AI status shown is mostly for configuration reference. Live detection status requires running the monitoring loop alongside the dashboard.
 - **Do not expose this dashboard to the internet.** It has no authentication and could allow uncontrolled access to printer APIs on your LAN.
 
-Tkinter remains available as a fallback or legacy launcher for source selection and notification settings if you do not want to use the dashboard.
+Tkinter remains available as a fallback UI for source selection and notification settings if you do not want to use the dashboard.
 
 ## Real Creality Pause/Stop Backend
 

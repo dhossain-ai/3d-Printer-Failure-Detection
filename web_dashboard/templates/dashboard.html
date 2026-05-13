@@ -7,450 +7,652 @@
     <link rel="stylesheet" href="/static/dashboard.css">
 </head>
 <body>
-    <header>
-        <h1>PrintSentinel</h1>
-        <div id="connection-status" class="status-badge disconnected">Disconnected</div>
-    </header>
+    <div class="app-shell">
+        <header class="app-header">
+            <div class="brand-block">
+                <p class="eyebrow">Local Print Monitoring</p>
+                <h1>PrintSentinel Dashboard</h1>
+                <p class="hero-copy">
+                    Watch the active feed, tune AI detection, and manage local printer controls from one place.
+                </p>
+            </div>
+            <div class="header-status">
+                <div class="header-status-item">
+                    <span class="status-label">Printer Link</span>
+                    <div id="connection-status" class="status-badge disconnected">Disconnected</div>
+                </div>
+                <div class="header-status-item">
+                    <span class="status-label">Dashboard Mode</span>
+                    <div class="status-badge neutral">Local Only</div>
+                </div>
+            </div>
+        </header>
 
-    <main class="dashboard-grid">
-        <!-- Connection/Status Card -->
-        <section class="card status-card">
-            <h2>Printer Status</h2>
-            <div class="status-grid">
-                <div class="status-item">
-                    <span class="label">Model:</span>
-                    <span id="printer-model" class="value">--</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">Hostname:</span>
-                    <span id="printer-hostname" class="value">--</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">State:</span>
-                    <span id="printer-state" class="value">--</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">Device State:</span>
-                    <span id="printer-device-state" class="value">--</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">Nozzle Temp:</span>
-                    <span id="printer-nozzle-temp" class="value">--</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">Bed Temp:</span>
-                    <span id="printer-bed-temp" class="value">--</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">Box Temp:</span>
-                    <span id="printer-box-temp" class="value">--</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">Light Status:</span>
-                    <span id="printer-light-status" class="value">--</span>
-                </div>
-            </div>
-        </section>
+        <nav class="section-nav" aria-label="Dashboard sections">
+            <a href="#monitor-section">Monitor</a>
+            <a href="#printer-section">Printer</a>
+            <a href="#ai-tuning-section">AI Tuning</a>
+            <a href="#dataset-section">Dataset</a>
+            <a href="#notifications-section">Notifications</a>
+            <a href="#logs-section">Logs</a>
+        </nav>
 
-        <!-- Camera Panel -->
-        <section class="card camera-card">
-            <h2>Camera Feed</h2>
-            <div style="display:flex;gap:10px;margin-bottom:8px;">
-                <button id="btn-cam-raw" class="btn btn-sm active-tab">Raw Camera</button>
-                <button id="btn-cam-ai" class="btn btn-sm">AI Processed</button>
-            </div>
-            <div class="camera-container" id="camera-container">
-                <div id="camera-placeholder" class="placeholder">
-                    Camera URL not configured.
-                </div>
-            </div>
-        </section>
+        <main>
+            <section class="layout-grid">
+                <div class="main-column">
+                    <section id="monitor-section" class="panel-section">
+                        <div class="section-title-row">
+                            <div>
+                                <p class="section-kicker">Monitor</p>
+                                <h2>Live Feed & Detection</h2>
+                            </div>
+                            <div class="badge-row">
+                                <span id="feed-source-type" class="status-pill neutral">Source: --</span>
+                                <span id="feed-active-source" class="status-pill neutral">Active: --</span>
+                                <span id="feed-roi-badge" class="status-pill neutral">ROI --</span>
+                                <span id="feed-last-update" class="status-pill neutral">Last update --</span>
+                            </div>
+                        </div>
 
-        <!-- AI Monitoring Card -->
-        <section class="card ai-control-card">
-            <h2>AI Monitoring</h2>
-            <div style="display:flex;gap:8px;margin-bottom:10px;">
-                <button id="btn-ai-start" class="btn" style="background-color:#1a7a3a;">Start AI Monitoring</button>
-                <button id="btn-ai-stop" class="btn" style="background-color:#555;" disabled>Stop AI Monitoring</button>
-            </div>
-            <div class="status-grid" id="ai-status-grid">
-                <div class="status-item">
-                    <span class="label">Status:</span>
-                    <span id="ai-running" class="value">Stopped</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">Frames Processed:</span>
-                    <span id="ai-frames" class="value">0</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">Last Detection:</span>
-                    <span id="ai-label" class="value">--</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">Confidence:</span>
-                    <span id="ai-confidence" class="value">--</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">Fail Frames:</span>
-                    <span id="ai-fail-frames" class="value">0</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">Confirmed Failure:</span>
-                    <span id="ai-confirmed" class="value">No</span>
-                </div>
-                <div class="status-item" style="grid-column:1/-1;">
-                    <span class="label">Last Action Result:</span>
-                    <span id="ai-action-result" class="value">--</span>
-                </div>
-                <div class="status-item" style="grid-column:1/-1;">
-                    <span class="label">Last Error:</span>
-                    <span id="ai-last-error" class="value" style="color:#e55;word-break:break-all;">--</span>
-                </div>
-            </div>
-        </section>
+                        <section class="card camera-card">
+                            <div class="card-header">
+                                <div>
+                                    <h3>Camera Feed</h3>
+                                    <p class="card-subtitle">Switch between the raw printer feed and the AI processed monitoring stream.</p>
+                                </div>
+                                <div class="segmented-control" role="tablist" aria-label="Feed view">
+                                    <button id="btn-cam-raw" class="btn btn-segment active-tab" type="button">Raw Feed</button>
+                                    <button id="btn-cam-ai" class="btn btn-segment" type="button">AI Processed</button>
+                                </div>
+                            </div>
+                            <div class="camera-stage">
+                                <div class="camera-meta">
+                                    <div class="meta-item">
+                                        <span class="meta-label">Visible Feed</span>
+                                        <span id="feed-visible-mode" class="meta-value">Raw Feed</span>
+                                    </div>
+                                    <div class="meta-item">
+                                        <span class="meta-label">Monitoring Source</span>
+                                        <span id="config-monitoring-source" class="meta-value">--</span>
+                                    </div>
+                                </div>
+                                <div class="camera-container" id="camera-container">
+                                    <div id="camera-placeholder" class="placeholder">
+                                        Camera URL not configured.
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
 
-        <!-- AI Status Card -->
-        <section class="card ai-status-card">
-            <h2>AI Status & Config</h2>
-            <div class="status-grid">
-                <div class="status-item">
-                    <span class="label">Monitoring Source:</span>
-                    <span id="config-monitoring-source" class="value">--</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">Confidence Threshold:</span>
-                    <span id="config-confidence" class="value">{{ config.CONFIDENCE_THRESHOLD }}</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">Model Device:</span>
-                    <span id="config-device" class="value">--</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">Controls Enabled:</span>
-                    <span id="config-controls" class="value">--</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">Camera Configured:</span>
-                    <span id="config-camera" class="value">--</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">WS Configured:</span>
-                    <span id="config-ws" class="value">--</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">Notifications:</span>
-                    <span id="config-notifications" class="value">--</span>
-                </div>
-            </div>
-            <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 10px;">
-                Note: Live AI detection status appears when monitoring loop integration is enabled.
-            </p>
-        </section>
+                        <div class="monitor-grid">
+                            <section class="card ai-control-card">
+                                <div class="card-header">
+                                    <div>
+                                        <h3>AI Monitoring</h3>
+                                        <p class="card-subtitle">Start or stop local AI monitoring without changing backend defaults.</p>
+                                    </div>
+                                    <div class="badge-row">
+                                        <span id="ai-running-badge" class="status-pill danger">Stopped</span>
+                                        <span id="ai-controls-badge" class="status-pill neutral">Controls --</span>
+                                    </div>
+                                </div>
+                                <div class="action-row">
+                                    <button id="btn-ai-start" class="btn btn-success" type="button">Start AI Monitoring</button>
+                                    <button id="btn-ai-stop" class="btn btn-secondary" type="button" disabled>Stop AI Monitoring</button>
+                                </div>
+                                <div class="status-grid compact-status-grid" id="ai-status-grid">
+                                    <div class="status-item">
+                                        <span class="label">Status</span>
+                                        <span id="ai-running" class="value">Stopped</span>
+                                    </div>
+                                    <div class="status-item">
+                                        <span class="label">Frames Processed</span>
+                                        <span id="ai-frames" class="value">0</span>
+                                    </div>
+                                    <div class="status-item">
+                                        <span class="label">Last Detection</span>
+                                        <span id="ai-label" class="value">--</span>
+                                    </div>
+                                    <div class="status-item">
+                                        <span class="label">Confidence</span>
+                                        <span id="ai-confidence" class="value">--</span>
+                                    </div>
+                                    <div class="status-item">
+                                        <span class="label">Fail Frames</span>
+                                        <span id="ai-fail-frames" class="value">0</span>
+                                    </div>
+                                    <div class="status-item">
+                                        <span class="label">Confirmed Failure</span>
+                                        <span id="ai-confirmed" class="value">No</span>
+                                    </div>
+                                    <div class="status-item status-item-wide">
+                                        <span class="label">Last Action Result</span>
+                                        <span id="ai-action-result" class="value">--</span>
+                                    </div>
+                                    <div class="status-item status-item-wide">
+                                        <span class="label">Last Error</span>
+                                        <span id="ai-last-error" class="value value-danger">--</span>
+                                    </div>
+                                </div>
+                            </section>
 
-        <section class="card ai-tuning-card">
-            <h2>AI Tuning & Safety</h2>
-            <div class="settings-grid">
-                <label class="settings-grid-full">
-                    <span>Confidence threshold</span>
-                    <div class="range-input-row">
-                        <input type="range" id="ai-confidence-threshold-range" min="0" max="1" step="0.01" value="0.35">
-                        <input type="number" id="ai-confidence-threshold" min="0" max="1" step="0.01" value="0.35">
+                            <section class="card ai-status-card">
+                                <div class="card-header">
+                                    <div>
+                                        <h3>AI Status & Config</h3>
+                                        <p class="card-subtitle">Current runtime state for monitoring, safety mode, and local control readiness.</p>
+                                    </div>
+                                    <div class="badge-row">
+                                        <span id="ai-auto-action-badge" class="status-pill neutral">Auto action --</span>
+                                        <span id="ai-mode-badge" class="status-pill neutral">Mode --</span>
+                                    </div>
+                                </div>
+                                <div class="status-grid">
+                                    <div class="status-item">
+                                        <span class="label">Confidence Threshold</span>
+                                        <span id="config-confidence" class="value">{{ config.CONFIDENCE_THRESHOLD }}</span>
+                                    </div>
+                                    <div class="status-item">
+                                        <span class="label">Model Device</span>
+                                        <span id="config-device" class="value">--</span>
+                                    </div>
+                                    <div class="status-item">
+                                        <span class="label">Controls Enabled</span>
+                                        <span id="config-controls" class="value">--</span>
+                                    </div>
+                                    <div class="status-item">
+                                        <span class="label">Camera Configured</span>
+                                        <span id="config-camera" class="value">--</span>
+                                    </div>
+                                    <div class="status-item">
+                                        <span class="label">WS Configured</span>
+                                        <span id="config-ws" class="value">--</span>
+                                    </div>
+                                    <div class="status-item">
+                                        <span class="label">Notifications</span>
+                                        <span id="config-notifications" class="value">--</span>
+                                    </div>
+                                </div>
+                                <p class="card-note">
+                                    Live detection details update while the local monitoring loop is running.
+                                </p>
+                            </section>
+                        </div>
+
+                        <section class="card source-settings-card">
+                            <div class="card-header">
+                                <div>
+                                    <h3>Camera / AI Source</h3>
+                                    <p class="card-subtitle">Choose the local source that the dashboard and AI monitor should use.</p>
+                                </div>
+                            </div>
+                            <div class="settings-grid">
+                                <label class="settings-grid-full">
+                                    <span>Source type</span>
+                                    <select id="source-type">
+                                        <option value="printer_camera">Printer camera</option>
+                                        <option value="webcam">Webcam</option>
+                                        <option value="demo_video">Demo video</option>
+                                        <option value="local_video">Local video</option>
+                                    </select>
+                                </label>
+                                <label id="printer-camera-url-row" class="settings-grid-full">
+                                    <span>Printer camera URL</span>
+                                    <input type="text" id="printer-camera-url" placeholder="http://printer:8080/?action=stream">
+                                </label>
+                                <label id="webcam-index-row">
+                                    <span>Webcam index</span>
+                                    <input type="number" id="webcam-index" min="0" step="1" value="0">
+                                </label>
+                                <label id="camera-type-row">
+                                    <span>Printer camera type</span>
+                                    <select id="source-camera-type">
+                                        <option value="stream">Stream</option>
+                                        <option value="snapshot">Snapshot</option>
+                                    </select>
+                                </label>
+                                <label id="demo-video-path-row" class="settings-grid-full">
+                                    <span>Demo video path</span>
+                                    <input type="text" id="demo-video-path">
+                                </label>
+                                <label id="local-video-path-row" class="settings-grid-full">
+                                    <span>Local video path</span>
+                                    <input type="text" id="local-video-path" placeholder="C:\\videos\\print-demo.mp4">
+                                </label>
+                            </div>
+                            <div class="settings-actions">
+                                <button id="btn-save-source-settings" class="btn" type="button">Save / Apply Source</button>
+                            </div>
+                            <div id="source-settings-errors" class="error-text" role="alert"></div>
+                            <pre id="source-settings-status" class="data-preview result-preview">Loading source settings...</pre>
+                        </section>
+                    </section>
+                </div>
+
+                <aside class="sidebar-column" id="printer-section">
+                    <div class="section-title-row sidebar-title-row">
+                        <div>
+                            <p class="section-kicker">Printer</p>
+                            <h2>Status & Controls</h2>
+                        </div>
                     </div>
-                </label>
-                <label>
-                    <span>Consecutive fail frames</span>
-                    <input type="number" id="ai-consecutive-fail-frames" min="1" step="1" value="3">
-                </label>
-                <label>
-                    <span>Cooldown seconds</span>
-                    <input type="number" id="ai-alert-cooldown-seconds" min="0" step="1" value="20">
-                </label>
-                <label class="settings-checkbox settings-grid-full">
-                    <input type="checkbox" id="ai-auto-action-enabled">
-                    <span>Enable auto action after confirmed failures</span>
-                </label>
-                <label class="settings-grid-full">
-                    <span>Action mode</span>
-                    <select id="ai-action-mode">
-                        <option value="detection_only">Detection only</option>
-                        <option value="pause">Pause</option>
-                        <option value="stop">Stop</option>
-                    </select>
-                </label>
-                <label class="settings-checkbox settings-grid-full">
-                    <input type="checkbox" id="ai-roi-enabled">
-                    <span>Enable ROI detection zone</span>
-                </label>
-                <label>
-                    <span>ROI x</span>
-                    <input type="number" id="ai-roi-x" min="0" max="1" step="0.01" value="0">
-                </label>
-                <label>
-                    <span>ROI y</span>
-                    <input type="number" id="ai-roi-y" min="0" max="1" step="0.01" value="0">
-                </label>
-                <label>
-                    <span>ROI width</span>
-                    <input type="number" id="ai-roi-width" min="0.01" max="1" step="0.01" value="1">
-                </label>
-                <label>
-                    <span>ROI height</span>
-                    <input type="number" id="ai-roi-height" min="0.01" max="1" step="0.01" value="1">
-                </label>
-                <div class="settings-grid-full roi-presets">
-                    <button type="button" class="btn btn-sm roi-preset-btn" data-roi="full">Full frame</button>
-                    <button type="button" class="btn btn-sm roi-preset-btn" data-roi="center">Center bed</button>
-                    <button type="button" class="btn btn-sm roi-preset-btn" data-roi="lower">Lower center</button>
+
+                    <section class="card status-card">
+                        <div class="card-header">
+                            <div>
+                                <h3>Printer Status</h3>
+                                <p class="card-subtitle">Live Creality state and temperatures from the local WebSocket status endpoint.</p>
+                            </div>
+                        </div>
+                        <div class="status-grid">
+                            <div class="status-item">
+                                <span class="label">Model</span>
+                                <span id="printer-model" class="value">--</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="label">Hostname</span>
+                                <span id="printer-hostname" class="value">--</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="label">State</span>
+                                <span id="printer-state" class="value">--</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="label">Device State</span>
+                                <span id="printer-device-state" class="value">--</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="label">Nozzle Temp</span>
+                                <span id="printer-nozzle-temp" class="value">--</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="label">Bed Temp</span>
+                                <span id="printer-bed-temp" class="value">--</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="label">Box Temp</span>
+                                <span id="printer-box-temp" class="value">--</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="label">Light Status</span>
+                                <span id="printer-light-status" class="value">--</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="card controls-card">
+                        <div class="card-header">
+                            <div>
+                                <h3>Printer Controls</h3>
+                                <p class="card-subtitle">Low-risk controls are separated from real print actions to reduce accidental clicks.</p>
+                            </div>
+                            <span id="controls-enabled-badge" class="status-pill neutral">Controls --</span>
+                        </div>
+                        <div id="controls-warning" class="alert-box alert-warning">
+                            Real controls disabled. Set PRINTSENTINEL_CREALITY_CONTROL_ENABLED=true.
+                        </div>
+                        <p id="controls-disabled-reason" class="helper-text">
+                            Controls become available when local Creality control is enabled.
+                        </p>
+
+                        <div class="control-panel">
+                            <div class="control-group soft-group">
+                                <div class="group-heading">
+                                    <h4>Light Controls</h4>
+                                    <span class="muted-badge">Low risk</span>
+                                </div>
+                                <p class="group-copy">Toggle the printer light for visibility.</p>
+                                <div class="action-row">
+                                    <button id="btn-light-on" class="btn" type="button" disabled>Light On</button>
+                                    <button id="btn-light-off" class="btn btn-secondary" type="button" disabled>Light Off</button>
+                                </div>
+                            </div>
+
+                            <div class="control-group soft-group">
+                                <div class="group-heading">
+                                    <h4>Cooling Fans</h4>
+                                    <span class="muted-badge">Low risk</span>
+                                </div>
+                                <p class="group-copy">Selected output appears beside each slider before the command is sent.</p>
+                                <label class="slider-group" for="slider-model-fan">
+                                    <span>Model Fan</span>
+                                    <strong><span id="val-model-fan">0</span>%</strong>
+                                </label>
+                                <input type="range" id="slider-model-fan" min="0" max="100" value="0" disabled>
+
+                                <label class="slider-group" for="slider-auxiliary-fan">
+                                    <span>Auxiliary Fan</span>
+                                    <strong><span id="val-auxiliary-fan">0</span>%</strong>
+                                </label>
+                                <input type="range" id="slider-auxiliary-fan" min="0" max="100" value="0" disabled>
+
+                                <label class="slider-group" for="slider-case-fan">
+                                    <span>Case Fan</span>
+                                    <strong><span id="val-case-fan">0</span>%</strong>
+                                </label>
+                                <input type="range" id="slider-case-fan" min="0" max="100" value="0" disabled>
+                            </div>
+
+                            <div class="control-group danger-group">
+                                <div class="group-heading">
+                                    <h4>Real Print Actions</h4>
+                                    <span class="status-pill warning">Live printer</span>
+                                </div>
+                                <p class="group-copy">
+                                    These actions affect the active print. Stop keeps the same confirmation flow and is intentionally styled as dangerous.
+                                </p>
+                                <div class="action-row">
+                                    <button id="btn-pause-print" class="btn btn-warning" type="button" disabled>Pause Print</button>
+                                    <button id="btn-stop-print" class="btn btn-danger" type="button" disabled>Stop Print</button>
+                                </div>
+                            </div>
+
+                            <div class="control-group soft-group">
+                                <div class="group-heading">
+                                    <h4>Printer Files</h4>
+                                    <span class="muted-badge">Read only</span>
+                                </div>
+                                <div class="action-row">
+                                    <button id="btn-refresh-files" class="btn" type="button" disabled>Refresh File List</button>
+                                </div>
+                                <div class="table-scroll files-table-wrap">
+                                    <table id="files-table" class="data-table" style="display: none;">
+                                        <thead>
+                                            <tr>
+                                                <th>Name</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="files-tbody"></tbody>
+                                    </table>
+                                </div>
+                                <pre id="files-preview" class="data-preview result-preview" style="display: none;"></pre>
+                            </div>
+                        </div>
+
+                        <div id="control-error" class="error-text" role="alert"></div>
+                    </section>
+                </aside>
+            </section>
+
+            <section id="ai-tuning-section" class="panel-section">
+                <div class="section-title-row">
+                    <div>
+                        <p class="section-kicker">AI Tuning</p>
+                        <h2>AI Tuning & Safety</h2>
+                    </div>
                 </div>
-            </div>
-            <p class="settings-note">
-                Values are normalized 0.0-1.0. Example: x=0.2 y=0.2 width=0.6 height=0.6
-            </p>
-            <div id="ai-stop-warning" class="warning-box ai-warning-box" style="display:none;">
-                Stop mode is destructive. Test with detection-only or pause first before enabling stop.
-            </div>
-            <div class="settings-actions">
-                <button id="btn-save-ai-settings" class="btn">Save / Apply</button>
-            </div>
-            <div id="ai-settings-errors" class="error-text"></div>
-            <pre id="ai-settings-effective" class="data-preview">Loading AI settings...</pre>
-        </section>
+                <section class="card ai-tuning-card">
+                    <div class="settings-grid tuning-grid">
+                        <label class="settings-grid-full">
+                            <span>Confidence threshold</span>
+                            <div class="range-input-row">
+                                <input type="range" id="ai-confidence-threshold-range" min="0" max="1" step="0.01" value="0.35">
+                                <input type="number" id="ai-confidence-threshold" min="0" max="1" step="0.01" value="0.35">
+                            </div>
+                            <small class="field-help">Recommended default: 0.35 for a balanced starting point.</small>
+                        </label>
+                        <label>
+                            <span>Consecutive fail frames</span>
+                            <input type="number" id="ai-consecutive-fail-frames" min="1" step="1" value="3">
+                            <small class="field-help">Recommended default: 3</small>
+                        </label>
+                        <label>
+                            <span>Cooldown seconds</span>
+                            <input type="number" id="ai-alert-cooldown-seconds" min="0" step="1" value="20">
+                            <small class="field-help">Recommended default: 20s</small>
+                        </label>
+                        <label class="settings-checkbox settings-grid-full">
+                            <input type="checkbox" id="ai-auto-action-enabled">
+                            <span>Enable auto action after confirmed failures</span>
+                        </label>
+                        <label class="settings-grid-full">
+                            <span>Action mode</span>
+                            <select id="ai-action-mode">
+                                <option value="detection_only">Detection only</option>
+                                <option value="pause">Pause</option>
+                                <option value="stop">Stop</option>
+                            </select>
+                            <small class="field-help">Start with detection-only or pause before moving to stop mode.</small>
+                        </label>
+                        <label class="settings-checkbox settings-grid-full">
+                            <input type="checkbox" id="ai-roi-enabled">
+                            <span>Enable ROI detection zone</span>
+                        </label>
+                        <label>
+                            <span>ROI x</span>
+                            <input type="number" id="ai-roi-x" min="0" max="1" step="0.01" value="0">
+                        </label>
+                        <label>
+                            <span>ROI y</span>
+                            <input type="number" id="ai-roi-y" min="0" max="1" step="0.01" value="0">
+                        </label>
+                        <label>
+                            <span>ROI width</span>
+                            <input type="number" id="ai-roi-width" min="0.01" max="1" step="0.01" value="1">
+                        </label>
+                        <label>
+                            <span>ROI height</span>
+                            <input type="number" id="ai-roi-height" min="0.01" max="1" step="0.01" value="1">
+                        </label>
+                        <div class="settings-grid-full roi-presets">
+                            <button type="button" class="btn btn-sm roi-preset-btn" data-roi="full">Full frame</button>
+                            <button type="button" class="btn btn-sm roi-preset-btn" data-roi="center">Center bed</button>
+                            <button type="button" class="btn btn-sm roi-preset-btn" data-roi="lower">Lower center</button>
+                        </div>
+                    </div>
+                    <p class="settings-note">
+                        Values are normalized from 0.0 to 1.0. Example: x=0.2 y=0.2 width=0.6 height=0.6.
+                    </p>
+                    <div id="ai-auto-warning" class="alert-box alert-warning" style="display:none;">
+                        Auto action is enabled. Confirm the printer backend and mode before running this during a real print.
+                    </div>
+                    <div id="ai-stop-warning" class="alert-box alert-danger" style="display:none;">
+                        Stop mode is destructive. Test with detection-only or pause first before enabling stop.
+                    </div>
+                    <div class="settings-actions">
+                        <button id="btn-save-ai-settings" class="btn" type="button">Save / Apply</button>
+                    </div>
+                    <div id="ai-settings-errors" class="error-text" role="alert"></div>
+                    <pre id="ai-settings-effective" class="data-preview result-preview">Loading AI settings...</pre>
+                </section>
+            </section>
 
-        <section class="card source-settings-card">
-            <h2>Camera / AI Source</h2>
-            <div class="settings-grid">
-                <label class="settings-grid-full">
-                    <span>Source type</span>
-                    <select id="source-type">
-                        <option value="printer_camera">Printer camera</option>
-                        <option value="webcam">Webcam</option>
-                        <option value="demo_video">Demo video</option>
-                        <option value="local_video">Local video</option>
-                    </select>
-                </label>
-                <label id="printer-camera-url-row" class="settings-grid-full">
-                    <span>Printer camera URL</span>
-                    <input type="text" id="printer-camera-url" placeholder="http://printer:8080/?action=stream">
-                </label>
-                <label id="webcam-index-row">
-                    <span>Webcam index</span>
-                    <input type="number" id="webcam-index" min="0" step="1" value="0">
-                </label>
-                <label id="camera-type-row">
-                    <span>Printer camera type</span>
-                    <select id="source-camera-type">
-                        <option value="stream">Stream</option>
-                        <option value="snapshot">Snapshot</option>
-                    </select>
-                </label>
-                <label id="demo-video-path-row" class="settings-grid-full">
-                    <span>Demo video path</span>
-                    <input type="text" id="demo-video-path">
-                </label>
-                <label id="local-video-path-row" class="settings-grid-full">
-                    <span>Local video path</span>
-                    <input type="text" id="local-video-path" placeholder="C:\\videos\\print-demo.mp4">
-                </label>
-            </div>
-            <div class="settings-actions">
-                <button id="btn-save-source-settings" class="btn">Save / Apply</button>
-            </div>
-            <div id="source-settings-errors" class="error-text"></div>
-            <pre id="source-settings-status" class="data-preview">Loading source settings...</pre>
-        </section>
-
-        <section class="card dataset-capture-card">
-            <h2>Dataset Capture</h2>
-            <div class="settings-grid">
-                <label class="settings-grid-full">
-                    <span>Notes</span>
-                    <input type="text" id="dataset-notes" maxlength="240" placeholder="Optional note for this frame">
-                </label>
-            </div>
-            <div class="dataset-actions">
-                <button class="btn dataset-capture-btn" data-category="false_positive">Save False Positive</button>
-                <button class="btn dataset-capture-btn" data-category="true_failure">Save True Failure</button>
-                <button class="btn dataset-capture-btn" data-category="normal">Save Normal</button>
-                <button class="btn dataset-capture-btn" data-category="unsure">Save Unsure</button>
-            </div>
-            <div id="dataset-capture-error" class="error-text"></div>
-            <pre id="dataset-capture-result" class="data-preview">No dataset capture saved yet.</pre>
-        </section>
-
-        <!-- Controls Card -->
-        <section class="card controls-card">
-            <h2>Controls</h2>
-            <div id="controls-warning" class="warning-box">
-                Real controls disabled. Set PRINTSENTINEL_CREALITY_CONTROL_ENABLED=true.
-            </div>
-            
-            <div class="control-group">
-                <h3>Light</h3>
-                <button id="btn-light-on" class="btn" disabled>On</button>
-                <button id="btn-light-off" class="btn" disabled>Off</button>
-            </div>
-
-            <div class="control-group" style="border: 1px solid var(--danger); padding: 10px; border-radius: 4px; margin-top: 10px;">
-                <h3 style="color: var(--danger);">Real Printer Actions</h3>
-                <button id="btn-pause-print" class="btn" disabled style="background-color: #d28c00;">Pause Print</button>
-                <button id="btn-stop-print" class="btn" disabled style="background-color: var(--danger);">Stop Print</button>
-            </div>
-            
-            <div class="control-group">
-                <h3>Model Fan (<span id="val-model-fan">0</span>%)</h3>
-                <input type="range" id="slider-model-fan" min="0" max="100" value="0" disabled>
-            </div>
-
-            <div class="control-group">
-                <h3>Auxiliary Fan (<span id="val-auxiliary-fan">0</span>%)</h3>
-                <input type="range" id="slider-auxiliary-fan" min="0" max="100" value="0" disabled>
-            </div>
-
-            <div class="control-group">
-                <h3>Case Fan (<span id="val-case-fan">0</span>%)</h3>
-                <input type="range" id="slider-case-fan" min="0" max="100" value="0" disabled>
-            </div>
-
-            <div class="control-group">
-                <h3>Files</h3>
-                <button id="btn-refresh-files" class="btn" disabled>Refresh File List</button>
-                <div id="files-list-container" style="margin-top: 10px; max-height: 200px; overflow-y: auto;">
-                    <table id="files-table" class="data-table" style="display: none;">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                            </tr>
-                        </thead>
-                        <tbody id="files-tbody"></tbody>
-                    </table>
+            <section id="dataset-section" class="panel-section">
+                <div class="section-title-row">
+                    <div>
+                        <p class="section-kicker">Dataset</p>
+                        <h2>Dataset Capture</h2>
+                    </div>
                 </div>
-                <pre id="files-preview" class="data-preview" style="display: none;"></pre>
-            </div>
-            
-            <div id="control-error" class="error-text"></div>
-        </section>
-        
-        <!-- Recent Events Table -->
-        <section class="card events-card" style="grid-column: 1 / -1;">
-            <h2>Recent Events</h2>
-            <div style="overflow-x: auto;">
-                <table id="events-table" class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Timestamp</th>
-                            <th>Source</th>
-                            <th>Label</th>
-                            <th>Confidence</th>
-                            <th>Action</th>
-                            <th>Screenshot</th>
-                        </tr>
-                    </thead>
-                    <tbody id="events-tbody">
-                        <tr><td colspan="6" class="placeholder">Loading events...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
+                <section class="card dataset-capture-card">
+                    <div class="settings-grid">
+                        <label class="settings-grid-full">
+                            <span>Notes</span>
+                            <input type="text" id="dataset-notes" maxlength="240" placeholder="Optional note for this frame">
+                        </label>
+                    </div>
+                    <div class="dataset-actions">
+                        <button class="btn dataset-capture-btn" type="button" data-category="false_positive">Capture False Positive</button>
+                        <button class="btn btn-warning dataset-capture-btn" type="button" data-category="true_failure">Capture True Failure</button>
+                        <button class="btn btn-success dataset-capture-btn" type="button" data-category="normal">Capture Normal</button>
+                        <button class="btn btn-secondary dataset-capture-btn" type="button" data-category="unsure">Capture Unsure</button>
+                    </div>
+                    <div id="dataset-capture-error" class="error-text" role="alert"></div>
+                    <pre id="dataset-capture-result" class="data-preview result-preview">No dataset capture saved yet.</pre>
+                </section>
+            </section>
 
-        <!-- Recent Notifications Table -->
-        <section class="card notifications-card" style="grid-column: 1 / -1;">
-            <div class="section-header">
-                <h2>Recent Notifications</h2>
-                <button id="btn-open-notification-settings" class="btn btn-sm">Notification Settings</button>
-            </div>
-            <div style="overflow-x: auto;">
-                <table id="notifications-table" class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Timestamp</th>
-                            <th>Target</th>
-                            <th>Status</th>
-                            <th>Message</th>
-                        </tr>
-                    </thead>
-                    <tbody id="notifications-tbody">
-                        <tr><td colspan="4" class="placeholder">Loading notifications...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
+            <section id="notifications-section" class="panel-section">
+                <div class="section-title-row">
+                    <div>
+                        <p class="section-kicker">Notifications</p>
+                        <h2>Settings & Recent Delivery</h2>
+                    </div>
+                    <button id="btn-open-notification-settings" class="btn btn-sm" type="button">Jump to Settings</button>
+                </div>
 
-        <section id="notification-settings-panel" class="card notification-settings-card" style="grid-column: 1 / -1;">
-            <h2>Notification Settings</h2>
-            <div class="settings-grid">
-                <label class="settings-checkbox">
-                    <input type="checkbox" id="notifications-enabled">
-                    <span>Enable notifications</span>
-                </label>
-                <label class="settings-checkbox">
-                    <input type="checkbox" id="windows-enabled">
-                    <span>Enable Windows desktop notifications</span>
-                </label>
-                <label class="settings-checkbox">
-                    <input type="checkbox" id="telegram-enabled">
-                    <span>Enable Telegram notifications</span>
-                </label>
-                <label>
-                    <span>Telegram bot token</span>
-                    <input type="password" id="telegram-bot-token" placeholder="Leave blank to keep existing token">
-                </label>
-                <label>
-                    <span>Telegram chat ID</span>
-                    <input type="text" id="telegram-chat-id" placeholder="Leave blank to keep existing chat ID">
-                </label>
-                <label class="settings-checkbox">
-                    <input type="checkbox" id="telegram-send-screenshot">
-                    <span>Send Telegram screenshot</span>
-                </label>
-                <label class="settings-checkbox">
-                    <input type="checkbox" id="email-enabled">
-                    <span>Enable email notifications</span>
-                </label>
-                <label>
-                    <span>SMTP host</span>
-                    <input type="text" id="smtp-host">
-                </label>
-                <label>
-                    <span>SMTP port</span>
-                    <input type="number" id="smtp-port" min="1" step="1">
-                </label>
-                <label>
-                    <span>SMTP security</span>
-                    <select id="smtp-security">
-                        <option value="ssl">SSL</option>
-                        <option value="starttls">STARTTLS</option>
-                        <option value="none">None</option>
-                    </select>
-                </label>
-                <label>
-                    <span>SMTP username</span>
-                    <input type="text" id="smtp-username" placeholder="Leave blank to keep existing username">
-                </label>
-                <label>
-                    <span>SMTP password</span>
-                    <input type="password" id="smtp-password" placeholder="Leave blank to keep existing password">
-                </label>
-                <label>
-                    <span>From email</span>
-                    <input type="email" id="email-from">
-                </label>
-                <label class="settings-grid-full">
-                    <span>Recipients (comma-separated)</span>
-                    <input type="text" id="email-to">
-                </label>
-                <label class="settings-checkbox settings-grid-full">
-                    <input type="checkbox" id="email-send-screenshot">
-                    <span>Send email screenshot</span>
-                </label>
-            </div>
-            <div class="settings-actions">
-                <button id="btn-save-notification-settings" class="btn">Save</button>
-                <button id="btn-test-notification-settings" class="btn">Test Notification</button>
-            </div>
-            <div id="notification-settings-errors" class="error-text"></div>
-            <pre id="notification-settings-results" class="data-preview">Loading notification settings...</pre>
-        </section>
-    </main>
+                <section class="card notifications-card">
+                    <div class="card-header">
+                        <div>
+                            <h3>Recent Notifications</h3>
+                            <p class="card-subtitle">Most recent delivery attempts from local providers.</p>
+                        </div>
+                    </div>
+                    <div class="table-scroll">
+                        <table id="notifications-table" class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>Target</th>
+                                    <th>Status</th>
+                                    <th>Message</th>
+                                </tr>
+                            </thead>
+                            <tbody id="notifications-tbody">
+                                <tr><td colspan="4" class="placeholder">Loading notifications...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section id="notification-settings-panel" class="card notification-settings-card">
+                    <div class="card-header">
+                        <div>
+                            <h3>Notification Settings</h3>
+                            <p class="card-subtitle">Windows, Telegram, and email stay grouped locally with secrets masked by default.</p>
+                        </div>
+                    </div>
+                    <div class="settings-grid">
+                        <label class="settings-checkbox settings-grid-full">
+                            <input type="checkbox" id="notifications-enabled">
+                            <span>Enable notifications</span>
+                        </label>
+
+                        <section class="subsection-card settings-grid-full">
+                            <div class="subsection-header">
+                                <h4>Windows</h4>
+                                <p>Local desktop notifications for this machine.</p>
+                            </div>
+                            <label class="settings-checkbox">
+                                <input type="checkbox" id="windows-enabled">
+                                <span>Enable Windows desktop notifications</span>
+                            </label>
+                        </section>
+
+                        <section class="subsection-card settings-grid-full">
+                            <div class="subsection-header">
+                                <h4>Telegram</h4>
+                                <p>Secrets remain masked unless you intentionally replace them.</p>
+                            </div>
+                            <label class="settings-checkbox settings-grid-full">
+                                <input type="checkbox" id="telegram-enabled">
+                                <span>Enable Telegram notifications</span>
+                            </label>
+                            <label>
+                                <span>Telegram bot token</span>
+                                <input type="password" id="telegram-bot-token" placeholder="Leave blank to keep existing token">
+                            </label>
+                            <label>
+                                <span>Telegram chat ID</span>
+                                <input type="text" id="telegram-chat-id" placeholder="Leave blank to keep existing chat ID">
+                            </label>
+                            <label class="settings-checkbox settings-grid-full">
+                                <input type="checkbox" id="telegram-send-screenshot">
+                                <span>Send Telegram screenshot</span>
+                            </label>
+                        </section>
+
+                        <section class="subsection-card settings-grid-full">
+                            <div class="subsection-header">
+                                <h4>Email</h4>
+                                <p>Use local SMTP settings; passwords remain masked until replaced.</p>
+                            </div>
+                            <label class="settings-checkbox settings-grid-full">
+                                <input type="checkbox" id="email-enabled">
+                                <span>Enable email notifications</span>
+                            </label>
+                            <label>
+                                <span>SMTP host</span>
+                                <input type="text" id="smtp-host">
+                            </label>
+                            <label>
+                                <span>SMTP port</span>
+                                <input type="number" id="smtp-port" min="1" step="1">
+                            </label>
+                            <label>
+                                <span>SMTP security</span>
+                                <select id="smtp-security">
+                                    <option value="ssl">SSL</option>
+                                    <option value="starttls">STARTTLS</option>
+                                    <option value="none">None</option>
+                                </select>
+                            </label>
+                            <label>
+                                <span>SMTP username</span>
+                                <input type="text" id="smtp-username" placeholder="Leave blank to keep existing username">
+                            </label>
+                            <label>
+                                <span>SMTP password</span>
+                                <input type="password" id="smtp-password" placeholder="Leave blank to keep existing password">
+                            </label>
+                            <label>
+                                <span>From email</span>
+                                <input type="email" id="email-from">
+                            </label>
+                            <label class="settings-grid-full">
+                                <span>Recipients (comma-separated)</span>
+                                <input type="text" id="email-to">
+                            </label>
+                            <label class="settings-checkbox settings-grid-full">
+                                <input type="checkbox" id="email-send-screenshot">
+                                <span>Send email screenshot</span>
+                            </label>
+                        </section>
+                    </div>
+                    <div class="settings-actions">
+                        <button id="btn-save-notification-settings" class="btn" type="button">Save Settings</button>
+                        <button id="btn-test-notification-settings" class="btn btn-secondary" type="button">Send Test Notification</button>
+                    </div>
+                    <div id="notification-settings-errors" class="error-text" role="alert"></div>
+                    <pre id="notification-settings-results" class="data-preview result-preview">Loading notification settings...</pre>
+                </section>
+            </section>
+
+            <section id="logs-section" class="panel-section">
+                <div class="section-title-row">
+                    <div>
+                        <p class="section-kicker">Logs</p>
+                        <h2>Recent Events</h2>
+                    </div>
+                </div>
+                <section class="card events-card">
+                    <div class="card-header">
+                        <div>
+                            <h3>Failure & Detection Events</h3>
+                            <p class="card-subtitle">Latest local event rows from <code>logs/events.csv</code>.</p>
+                        </div>
+                    </div>
+                    <div class="table-scroll">
+                        <table id="events-table" class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>Source</th>
+                                    <th>Label</th>
+                                    <th>Confidence</th>
+                                    <th>Action</th>
+                                    <th>Screenshot</th>
+                                </tr>
+                            </thead>
+                            <tbody id="events-tbody">
+                                <tr><td colspan="6" class="placeholder">Loading events...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </section>
+        </main>
+    </div>
 
     <script src="/static/dashboard.js"></script>
 </body>

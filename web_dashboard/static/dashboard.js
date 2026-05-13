@@ -36,6 +36,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const filesPreview = document.getElementById("files-preview");
     const cameraContainer = document.getElementById("camera-container");
     const configDevice = document.getElementById("config-device");
+    const controlsEnabledBadge = document.getElementById("controls-enabled-badge");
+    const controlsDisabledReason = document.getElementById("controls-disabled-reason");
     const btnOpenNotificationSettings = document.getElementById("btn-open-notification-settings");
     const notificationSettingsPanel = document.getElementById("notification-settings-panel");
     const notificationSettingsErrors = document.getElementById("notification-settings-errors");
@@ -44,12 +46,22 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnTestNotificationSettings = document.getElementById("btn-test-notification-settings");
     const aiSettingsErrors = document.getElementById("ai-settings-errors");
     const aiSettingsEffective = document.getElementById("ai-settings-effective");
+    const aiAutoWarning = document.getElementById("ai-auto-warning");
     const aiStopWarning = document.getElementById("ai-stop-warning");
+    const aiRunningBadge = document.getElementById("ai-running-badge");
+    const aiControlsBadge = document.getElementById("ai-controls-badge");
+    const aiAutoActionBadge = document.getElementById("ai-auto-action-badge");
+    const aiModeBadge = document.getElementById("ai-mode-badge");
     const btnSaveAiSettings = document.getElementById("btn-save-ai-settings");
     const sourceSettingsErrors = document.getElementById("source-settings-errors");
     const sourceSettingsStatus = document.getElementById("source-settings-status");
     const btnSaveSourceSettings = document.getElementById("btn-save-source-settings");
     const configMonitoringSource = document.getElementById("config-monitoring-source");
+    const feedSourceType = document.getElementById("feed-source-type");
+    const feedActiveSource = document.getElementById("feed-active-source");
+    const feedRoiBadge = document.getElementById("feed-roi-badge");
+    const feedLastUpdate = document.getElementById("feed-last-update");
+    const feedVisibleMode = document.getElementById("feed-visible-mode");
     const datasetNotes = document.getElementById("dataset-notes");
     const datasetCaptureError = document.getElementById("dataset-capture-error");
     const datasetCaptureResult = document.getElementById("dataset-capture-result");
@@ -109,6 +121,74 @@ document.addEventListener("DOMContentLoaded", () => {
     let rawCameraHtml = "";
     let aiStatusInterval = null;
 
+    function setBadgeState(element, text, variant = "neutral") {
+        if (!element) return;
+        element.textContent = text;
+        element.classList.remove("neutral", "connected", "disconnected", "success", "warning", "danger");
+        element.classList.add(variant);
+    }
+
+    function formatBoolean(value) {
+        return value ? "Enabled" : "Disabled";
+    }
+
+    function formatSourceType(value) {
+        return (value || "--")
+            .replaceAll("_", " ")
+            .replace(/\b\w/g, (char) => char.toUpperCase());
+    }
+
+    function markLastUpdate(label = "Updated") {
+        if (!feedLastUpdate) return;
+        const timestamp = new Date().toLocaleTimeString([], {hour: "2-digit", minute: "2-digit", second: "2-digit"});
+        setBadgeState(feedLastUpdate, `${label} ${timestamp}`, "neutral");
+    }
+
+    function updateVisibleFeedMode() {
+        if (feedVisibleMode) {
+            feedVisibleMode.textContent = showingAiStream ? "AI Processed" : "Raw Feed";
+        }
+    }
+
+    function updateControlsSummary() {
+        setBadgeState(
+            controlsEnabledBadge,
+            `Controls ${formatBoolean(controlsEnabled)}`,
+            controlsEnabled ? "success" : "neutral",
+        );
+        setBadgeState(
+            aiControlsBadge,
+            `Controls ${formatBoolean(controlsEnabled)}`,
+            controlsEnabled ? "success" : "neutral",
+        );
+        if (controlsDisabledReason) {
+            controlsDisabledReason.textContent = controlsEnabled
+                ? "Real local control is enabled. Low-risk controls and live print actions are available."
+                : "Controls are disabled because PRINTSENTINEL_CREALITY_CONTROL_ENABLED is not enabled.";
+        }
+    }
+
+    function updateAiWarningState() {
+        if (aiAutoWarning) {
+            aiAutoWarning.style.display = aiSettingsFields.autoActionEnabled.checked ? "block" : "none";
+        }
+        if (aiAutoActionBadge) {
+            setBadgeState(
+                aiAutoActionBadge,
+                `Auto action ${formatBoolean(aiSettingsFields.autoActionEnabled.checked)}`,
+                aiSettingsFields.autoActionEnabled.checked ? "warning" : "neutral",
+            );
+        }
+        if (aiModeBadge) {
+            const mode = aiSettingsFields.actionMode.value || "detection_only";
+            const modeLabel = mode === "detection_only"
+                ? "Detection only"
+                : mode.charAt(0).toUpperCase() + mode.slice(1);
+            const variant = mode === "stop" ? "danger" : mode === "pause" ? "warning" : "neutral";
+            setBadgeState(aiModeBadge, `Mode ${modeLabel}`, variant);
+        }
+    }
+
     function showError(msg) {
         elError.textContent = msg;
         setTimeout(() => { elError.textContent = ""; }, 5000);
@@ -150,10 +230,23 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
             const res = await fetch("/api/config");
             config = await res.json();
+            const controlElements = [
+                btnLightOn,
+                btnLightOff,
+                sliderModelFan,
+                sliderAuxFan,
+                sliderCaseFan,
+                btnRefreshFiles,
+                btnPausePrint,
+                btnStopPrint,
+            ].filter(Boolean);
             
             controlsEnabled = config.control_enabled;
             if (!controlsEnabled) {
                 elWarning.style.display = "block";
+                controlElements.forEach((element) => {
+                    element.title = "Disabled because PRINTSENTINEL_CREALITY_CONTROL_ENABLED is not enabled.";
+                });
             } else {
                 elWarning.style.display = "none";
                 btnLightOn.disabled = false;
@@ -164,7 +257,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 btnRefreshFiles.disabled = false;
                 if (btnPausePrint) btnPausePrint.disabled = false;
                 if (btnStopPrint) btnStopPrint.disabled = false;
+                controlElements.forEach((element) => {
+                    element.title = "";
+                });
             }
+            updateControlsSummary();
 
             configDevice.textContent = config.model_device;
 
@@ -233,6 +330,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!showingAiStream) {
             cameraContainer.innerHTML = rawCameraHtml;
         }
+        updateVisibleFeedMode();
     }
 
     function formatSourceStatus(data) {
@@ -256,9 +354,12 @@ document.addEventListener("DOMContentLoaded", () => {
         sourceFields.localVideoPath.value = settings.source_type === "local_video" ? (settings.source_value || "") : sourceFields.localVideoPath.value;
         updateSourceFieldVisibility();
         updateRawCameraPreview();
+        setBadgeState(feedSourceType, `Source: ${formatSourceType(settings.source_type)}`, "neutral");
+        setBadgeState(feedActiveSource, `Active: ${data.active_source || data.source_label || "--"}`, data.running ? "connected" : "neutral");
         if (data.source_label || data.active_source || data.message) {
             showSourceSettingsStatus(formatSourceStatus(data));
         }
+        markLastUpdate("Source");
     }
 
     async function loadSourceSettings() {
@@ -338,6 +439,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function updateStopWarning() {
         if (!aiStopWarning) return;
         aiStopWarning.style.display = aiSettingsFields.actionMode.value === "stop" ? "block" : "none";
+        updateAiWarningState();
     }
 
     function syncConfidenceInputs(source) {
@@ -361,6 +463,11 @@ document.addEventListener("DOMContentLoaded", () => {
         aiSettingsFields.roiWidth.value = settings.roi_width;
         aiSettingsFields.roiHeight.value = settings.roi_height;
         document.getElementById("config-confidence").textContent = Number(settings.confidence_threshold).toFixed(2);
+        setBadgeState(
+            feedRoiBadge,
+            `ROI ${settings.roi_enabled ? "Enabled" : "Disabled"}`,
+            settings.roi_enabled ? "success" : "neutral",
+        );
         updateStopWarning();
         if (effective) {
             showAiSettingsEffective(formatAiEffectiveSettings(effective));
@@ -456,7 +563,7 @@ document.addEventListener("DOMContentLoaded", () => {
     async function updateStatus() {
         if (!config.status_ws_configured) {
             elConnStatus.textContent = "Status not configured";
-            elConnStatus.className = "status-badge disconnected";
+            elConnStatus.className = "status-badge neutral";
             return;
         }
 
@@ -620,10 +727,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 tbody.innerHTML = "";
                 data.notifications.forEach(n => {
                     const tr = document.createElement("tr");
+                    const statusLabel = n.status || "--";
+                    const statusVariant = statusLabel.toLowerCase().includes("success") ? "success" : (statusLabel.toLowerCase().includes("fail") || statusLabel.toLowerCase().includes("error")) ? "danger" : "neutral";
                     tr.innerHTML = `
                         <td>${n.timestamp || "--"}</td>
                         <td>${n.target || "--"}</td>
-                        <td>${n.status || "--"}</td>
+                        <td><span class="status-pill ${statusVariant}">${statusLabel}</span></td>
                         <td>${n.message || "--"}</td>
                     `;
                     tbody.appendChild(tr);
@@ -665,6 +774,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 // Auto-switch to AI stream
                 showingAiStream = true;
                 cameraContainer.innerHTML = `<img src="/api/ai/stream" alt="AI Stream">`;
+                updateVisibleFeedMode();
                 btnCamAi && (btnCamAi.classList.add("active-tab"));
                 btnCamRaw && (btnCamRaw.classList.remove("active-tab"));
                 // Poll AI status
@@ -683,6 +793,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 btnAiStop.disabled = true;
                 showingAiStream = false;
                 if (rawCameraHtml) cameraContainer.innerHTML = rawCameraHtml;
+                updateVisibleFeedMode();
                 btnCamRaw && (btnCamRaw.classList.add("active-tab"));
                 btnCamAi && (btnCamAi.classList.remove("active-tab"));
                 if (aiStatusInterval) { clearInterval(aiStatusInterval); aiStatusInterval = null; }
@@ -697,6 +808,7 @@ document.addEventListener("DOMContentLoaded", () => {
         btnCamRaw.addEventListener("click", () => {
             showingAiStream = false;
             if (rawCameraHtml) cameraContainer.innerHTML = rawCameraHtml;
+            updateVisibleFeedMode();
             btnCamRaw.classList.add("active-tab");
             if (btnCamAi) btnCamAi.classList.remove("active-tab");
         });
@@ -705,6 +817,7 @@ document.addEventListener("DOMContentLoaded", () => {
         btnCamAi.addEventListener("click", () => {
             showingAiStream = true;
             cameraContainer.innerHTML = `<img src="/api/ai/stream" alt="AI Stream">`;
+            updateVisibleFeedMode();
             btnCamAi.classList.add("active-tab");
             if (btnCamRaw) btnCamRaw.classList.remove("active-tab");
         });
@@ -723,12 +836,19 @@ document.addEventListener("DOMContentLoaded", () => {
             set("ai-confirmed", s.confirmed_failure ? "YES ⚠" : "No");
             set("ai-action-result", s.last_action_result || "--");
             set("ai-last-error", s.last_error || "--");
+            setBadgeState(aiRunningBadge, s.running ? "Running" : "Stopped", s.running ? "connected" : "danger");
+            setBadgeState(feedRoiBadge, `ROI ${s.roi_enabled ? "Enabled" : "Disabled"}`, s.roi_enabled ? "success" : "neutral");
             if (s.confidence_threshold !== undefined) {
                 document.getElementById("config-confidence").textContent = Number(s.confidence_threshold).toFixed(2);
             }
             if (configMonitoringSource) {
                 configMonitoringSource.textContent = s.source_name || `${s.source_type || "--"}`;
             }
+            setBadgeState(feedSourceType, `Source: ${formatSourceType(s.source_type)}`, "neutral");
+            setBadgeState(feedActiveSource, `Active: ${s.source_name || s.source_type || "--"}`, s.running ? "connected" : "neutral");
+            aiSettingsFields.autoActionEnabled.checked = !!s.auto_action_enabled;
+            aiSettingsFields.actionMode.value = s.action_mode || aiSettingsFields.actionMode.value;
+            updateAiWarningState();
             showAiSettingsEffective(formatAiEffectiveSettings({
                 confidence_threshold: s.confidence_threshold,
                 consecutive_fail_frames: s.consecutive_fail_frames,
@@ -747,10 +867,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 cooldown_remaining_seconds: s.cooldown_remaining_seconds,
                 running: s.running,
             }));
+            markLastUpdate(s.running ? "Frame" : "Status");
 
             // Sync button state with server truth
-            if (!s.running && btnAiStart) { btnAiStart.disabled = false; }
-            if (!s.running && btnAiStop) { btnAiStop.disabled = true; }
+            if (btnAiStart) { btnAiStart.disabled = !!s.running; }
+            if (btnAiStop) { btnAiStop.disabled = !s.running; }
         } catch (e) {
             console.error("AI status error", e);
         }
@@ -764,11 +885,18 @@ document.addEventListener("DOMContentLoaded", () => {
     if (aiSettingsFields.actionMode) {
         aiSettingsFields.actionMode.addEventListener("change", updateStopWarning);
     }
+    if (aiSettingsFields.autoActionEnabled) {
+        aiSettingsFields.autoActionEnabled.addEventListener("change", updateAiWarningState);
+    }
 
     if (sourceFields.sourceType) {
         sourceFields.sourceType.addEventListener("change", updateSourceFieldVisibility);
         updateSourceFieldVisibility();
     }
+
+    updateVisibleFeedMode();
+    updateAiWarningState();
+    updateControlsSummary();
 
     if (btnOpenNotificationSettings && notificationSettingsPanel) {
         btnOpenNotificationSettings.addEventListener("click", () => {
