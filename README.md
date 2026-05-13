@@ -613,7 +613,28 @@ Notes:
 - **Single thread**: Only one monitoring session may run at once; starting again while running is rejected.
 - **Local only**: The MJPEG stream is served locally and should not be exposed to the internet.
 - **Resource intensive**: YOLO inference on a live stream consumes significant CPU/GPU. Use `cuda` for best performance.
-- **Action integration**: In this phase the dashboard monitoring is detection-only and does not trigger printer pause/stop or notifications to avoid double-firing alongside the main OpenCV runner. This can be added in a future phase.
+
+### AI Tuning and Auto-Action Safety
+
+The dashboard includes an `AI Tuning & Safety` panel for runtime monitoring changes. These settings apply to the dashboard monitoring service without requiring a dashboard restart, and they are intentionally safety-first by default:
+
+- `auto_action_enabled` defaults to `false`.
+- `action_mode` defaults to `detection_only`.
+- Real printer auto-actions only run when the backend is explicitly configured and enabled.
+- `stop` is supported, but `pause` is usually the safer first choice.
+
+Recommended starting values when you are trying to reduce false positives:
+
+- Confidence threshold: `0.60` to `0.75`
+- Consecutive fail frames: `3` to `5`
+- Alert cooldown seconds: keep a non-zero cooldown so repeated detections do not hammer the printer
+- Auto action: leave disabled until you have tested the camera angle, scene, and labels on safe sample prints
+
+Practical safety guidance:
+
+- Start with `detection_only` while watching the AI processed stream.
+- Move to `pause` before `stop` once you trust the scene and thresholds.
+- Only enable real printer auto-actions after verifying that dashboard controls and status are correctly configured for your backend.
 
 ## Screenshots
 

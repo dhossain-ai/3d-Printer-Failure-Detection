@@ -147,6 +147,47 @@
             </p>
         </section>
 
+        <section class="card ai-tuning-card">
+            <h2>AI Tuning & Safety</h2>
+            <div class="settings-grid">
+                <label class="settings-grid-full">
+                    <span>Confidence threshold</span>
+                    <div class="range-input-row">
+                        <input type="range" id="ai-confidence-threshold-range" min="0" max="1" step="0.01" value="0.35">
+                        <input type="number" id="ai-confidence-threshold" min="0" max="1" step="0.01" value="0.35">
+                    </div>
+                </label>
+                <label>
+                    <span>Consecutive fail frames</span>
+                    <input type="number" id="ai-consecutive-fail-frames" min="1" step="1" value="3">
+                </label>
+                <label>
+                    <span>Cooldown seconds</span>
+                    <input type="number" id="ai-alert-cooldown-seconds" min="0" step="1" value="20">
+                </label>
+                <label class="settings-checkbox settings-grid-full">
+                    <input type="checkbox" id="ai-auto-action-enabled">
+                    <span>Enable auto action after confirmed failures</span>
+                </label>
+                <label class="settings-grid-full">
+                    <span>Action mode</span>
+                    <select id="ai-action-mode">
+                        <option value="detection_only">Detection only</option>
+                        <option value="pause">Pause</option>
+                        <option value="stop">Stop</option>
+                    </select>
+                </label>
+            </div>
+            <div id="ai-stop-warning" class="warning-box ai-warning-box" style="display:none;">
+                Stop mode is destructive. Test with detection-only or pause first before enabling stop.
+            </div>
+            <div class="settings-actions">
+                <button id="btn-save-ai-settings" class="btn">Save / Apply</button>
+            </div>
+            <div id="ai-settings-errors" class="error-text"></div>
+            <pre id="ai-settings-effective" class="data-preview">Loading AI settings...</pre>
+        </section>
+
         <!-- Controls Card -->
         <section class="card controls-card">
             <h2>Controls</h2>

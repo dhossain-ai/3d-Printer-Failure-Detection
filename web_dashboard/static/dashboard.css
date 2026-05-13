@@ -260,9 +260,26 @@ input[type="range"] {
     margin-top: 18px;
 }
 
+.range-input-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 110px;
+    gap: 12px;
+    align-items: center;
+}
+
 #notification-settings-results {
     margin-top: 10px;
     min-height: 72px;
+}
+
+#ai-settings-effective {
+    margin-top: 10px;
+    min-height: 104px;
+}
+
+.ai-warning-box {
+    display: block;
+    margin-top: 14px;
 }
 
 @media (max-width: 768px) {
@@ -273,5 +290,9 @@ input[type="range"] {
     .section-header {
         align-items: flex-start;
         flex-direction: column;
+    }
+
+    .range-input-row {
+        grid-template-columns: 1fr;
     }
 }

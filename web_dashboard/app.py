@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -21,6 +22,10 @@ from notifications.settings import (
 )
 from creality_control import CrealityWebSocketControlClient
 from printer_controller import log_printer_command as log_command
+from web_dashboard.monitoring_service import (
+    get_service,
+    validate_ai_settings,
+)
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -57,6 +62,14 @@ class NotificationSettingsUpdateRequest(BaseModel):
     email_from: str = ""
     email_to: str = ""
     email_send_screenshot: bool = True
+
+
+class AiSettingsUpdateRequest(BaseModel):
+    confidence_threshold: float | str = config.CONFIDENCE_THRESHOLD
+    consecutive_fail_frames: int | str = config.CONSECUTIVE_FAIL_FRAMES
+    alert_cooldown_seconds: int | str = config.ALERT_COOLDOWN_SECONDS
+    auto_action_enabled: bool = False
+    action_mode: str = "detection_only"
 
 
 @app.get("/")
@@ -309,9 +322,29 @@ def _api_request_to_local_settings(
 # AI Monitoring endpoints
 # ---------------------------------------------------------------------------
 
-from fastapi.responses import StreamingResponse
-from web_dashboard.monitoring_service import get_service
 import time
+
+
+@app.get("/api/ai/settings")
+def get_ai_settings():
+    """Return current dashboard AI runtime settings."""
+
+    return get_service().get_settings_payload()
+
+
+@app.post("/api/ai/settings")
+def update_ai_settings(req: AiSettingsUpdateRequest):
+    """Validate and update dashboard AI runtime settings."""
+
+    settings_payload = req.model_dump()
+    errors = validate_ai_settings(settings_payload)
+    if errors:
+        raise HTTPException(status_code=400, detail={"errors": errors})
+
+    return {
+        "success": True,
+        **get_service().update_settings(settings_payload),
+    }
 
 
 class AiStartRequest(BaseModel):

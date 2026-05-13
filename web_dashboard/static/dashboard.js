@@ -41,6 +41,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const notificationSettingsResults = document.getElementById("notification-settings-results");
     const btnSaveNotificationSettings = document.getElementById("btn-save-notification-settings");
     const btnTestNotificationSettings = document.getElementById("btn-test-notification-settings");
+    const aiSettingsErrors = document.getElementById("ai-settings-errors");
+    const aiSettingsEffective = document.getElementById("ai-settings-effective");
+    const aiStopWarning = document.getElementById("ai-stop-warning");
+    const btnSaveAiSettings = document.getElementById("btn-save-ai-settings");
 
     const notificationFields = {
         notificationsEnabled: document.getElementById("notifications-enabled"),
@@ -58,6 +62,14 @@ document.addEventListener("DOMContentLoaded", () => {
         emailFrom: document.getElementById("email-from"),
         emailTo: document.getElementById("email-to"),
         emailSendScreenshot: document.getElementById("email-send-screenshot"),
+    };
+    const aiSettingsFields = {
+        confidenceThresholdRange: document.getElementById("ai-confidence-threshold-range"),
+        confidenceThreshold: document.getElementById("ai-confidence-threshold"),
+        consecutiveFailFrames: document.getElementById("ai-consecutive-fail-frames"),
+        alertCooldownSeconds: document.getElementById("ai-alert-cooldown-seconds"),
+        autoActionEnabled: document.getElementById("ai-auto-action-enabled"),
+        actionMode: document.getElementById("ai-action-mode"),
     };
 
     // AI monitoring elements
@@ -80,6 +92,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function showNotificationSettingsResults(lines) {
         notificationSettingsResults.textContent = Array.isArray(lines) ? lines.join("\n") : String(lines || "");
+    }
+
+    function showAiSettingsErrors(errors) {
+        aiSettingsErrors.textContent = Array.isArray(errors) ? errors.join("\n") : (errors || "");
+    }
+
+    function showAiSettingsEffective(lines) {
+        aiSettingsEffective.textContent = Array.isArray(lines) ? lines.join("\n") : String(lines || "");
     }
 
     async function loadConfig() {
@@ -155,6 +175,84 @@ document.addEventListener("DOMContentLoaded", () => {
             console.error("Failed to load notification settings", e);
             showNotificationSettingsResults(`Failed to load notification settings: ${e.message}`);
         }
+    }
+
+    function updateStopWarning() {
+        if (!aiStopWarning) return;
+        aiStopWarning.style.display = aiSettingsFields.actionMode.value === "stop" ? "block" : "none";
+    }
+
+    function syncConfidenceInputs(source) {
+        const value = source.value;
+        aiSettingsFields.confidenceThreshold.value = value;
+        aiSettingsFields.confidenceThresholdRange.value = value;
+    }
+
+    function applyAiSettingsPayload(payload) {
+        const settings = payload.settings || payload;
+        const effective = payload.effective || null;
+        aiSettingsFields.confidenceThresholdRange.value = settings.confidence_threshold;
+        aiSettingsFields.confidenceThreshold.value = settings.confidence_threshold;
+        aiSettingsFields.consecutiveFailFrames.value = settings.consecutive_fail_frames;
+        aiSettingsFields.alertCooldownSeconds.value = settings.alert_cooldown_seconds;
+        aiSettingsFields.autoActionEnabled.checked = !!settings.auto_action_enabled;
+        aiSettingsFields.actionMode.value = settings.action_mode;
+        document.getElementById("config-confidence").textContent = Number(settings.confidence_threshold).toFixed(2);
+        updateStopWarning();
+        if (effective) {
+            showAiSettingsEffective(formatAiEffectiveSettings(effective));
+        }
+    }
+
+    function formatAiEffectiveSettings(effective) {
+        return [
+            `Threshold: ${Number(effective.confidence_threshold).toFixed(2)}`,
+            `Consecutive frames: ${effective.consecutive_fail_frames}`,
+            `Cooldown: ${effective.alert_cooldown_seconds}s`,
+            `Auto action enabled: ${effective.auto_action_enabled ? "Yes" : "No"}`,
+            `Action mode: ${effective.action_mode}`,
+            `Backend: ${effective.printer_backend}${effective.real_printer_command ? " (real)" : " (simulated)"}`,
+            `Will trigger action: ${effective.auto_action_active ? "Yes" : "No"}`,
+            `Reason: ${effective.auto_action_reason}`,
+            `Cooldown remaining: ${effective.cooldown_remaining_seconds}s`,
+            `Monitoring running: ${effective.running ? "Yes" : "No"}`,
+        ];
+    }
+
+    async function loadAiSettings() {
+        try {
+            const res = await fetch("/api/ai/settings");
+            const data = await res.json();
+            applyAiSettingsPayload(data);
+            showAiSettingsErrors("");
+        } catch (e) {
+            console.error("Failed to load AI settings", e);
+            showAiSettingsEffective(`Failed to load AI settings: ${e.message}`);
+        }
+    }
+
+    function collectAiSettingsPayload() {
+        return {
+            confidence_threshold: aiSettingsFields.confidenceThreshold.value.trim(),
+            consecutive_fail_frames: aiSettingsFields.consecutiveFailFrames.value.trim(),
+            alert_cooldown_seconds: aiSettingsFields.alertCooldownSeconds.value.trim(),
+            auto_action_enabled: aiSettingsFields.autoActionEnabled.checked,
+            action_mode: aiSettingsFields.actionMode.value,
+        };
+    }
+
+    async function postAiSettings() {
+        const res = await fetch("/api/ai/settings", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(collectAiSettingsPayload()),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            const errors = data.detail && data.detail.errors ? data.detail.errors : [data.detail || "Request failed"];
+            throw new Error(errors.join("\n"));
+        }
+        return data;
     }
 
     function collectNotificationPayload() {
@@ -456,6 +554,22 @@ document.addEventListener("DOMContentLoaded", () => {
             set("ai-confirmed", s.confirmed_failure ? "YES ⚠" : "No");
             set("ai-action-result", s.last_action_result || "--");
             set("ai-last-error", s.last_error || "--");
+            if (s.confidence_threshold !== undefined) {
+                document.getElementById("config-confidence").textContent = Number(s.confidence_threshold).toFixed(2);
+            }
+            showAiSettingsEffective(formatAiEffectiveSettings({
+                confidence_threshold: s.confidence_threshold,
+                consecutive_fail_frames: s.consecutive_fail_frames,
+                alert_cooldown_seconds: s.alert_cooldown_seconds,
+                auto_action_enabled: s.auto_action_enabled,
+                action_mode: s.action_mode,
+                printer_backend: s.printer_backend,
+                real_printer_command: s.real_printer_command,
+                auto_action_active: s.auto_action_active,
+                auto_action_reason: s.auto_action_reason,
+                cooldown_remaining_seconds: s.cooldown_remaining_seconds,
+                running: s.running,
+            }));
 
             // Sync button state with server truth
             if (!s.running && btnAiStart) { btnAiStart.disabled = false; }
@@ -463,6 +577,15 @@ document.addEventListener("DOMContentLoaded", () => {
         } catch (e) {
             console.error("AI status error", e);
         }
+    }
+
+    if (aiSettingsFields.confidenceThresholdRange && aiSettingsFields.confidenceThreshold) {
+        aiSettingsFields.confidenceThresholdRange.addEventListener("input", (e) => syncConfidenceInputs(e.target));
+        aiSettingsFields.confidenceThreshold.addEventListener("input", (e) => syncConfidenceInputs(e.target));
+    }
+
+    if (aiSettingsFields.actionMode) {
+        aiSettingsFields.actionMode.addEventListener("change", updateStopWarning);
     }
 
     if (btnOpenNotificationSettings && notificationSettingsPanel) {
@@ -498,12 +621,25 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    if (btnSaveAiSettings) {
+        btnSaveAiSettings.addEventListener("click", async () => {
+            showAiSettingsErrors("");
+            try {
+                const data = await postAiSettings();
+                applyAiSettingsPayload(data);
+            } catch (e) {
+                showAiSettingsErrors(e.message.split("\n"));
+            }
+        });
+    }
+
     // Init
     loadConfig().then(() => {
         updateStatus();
         loadEvents();
         loadNotifications();
         loadNotificationSettings();
+        loadAiSettings();
         loadAiStatus();
         setInterval(updateStatus, 3000);
     });

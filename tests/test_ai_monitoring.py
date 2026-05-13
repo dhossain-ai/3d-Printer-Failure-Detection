@@ -1,6 +1,5 @@
 """Tests for dashboard AI monitoring endpoints and service."""
 
-import threading
 import time
 from unittest.mock import MagicMock, patch
 
@@ -9,7 +8,11 @@ from fastapi.testclient import TestClient
 
 import config
 from web_dashboard.app import app
-from web_dashboard.monitoring_service import DashboardMonitoringService
+from web_dashboard.monitoring_service import (
+    DEFAULT_DASHBOARD_AI_SETTINGS,
+    DashboardMonitoringService,
+    validate_ai_settings,
+)
 
 client = TestClient(app)
 
@@ -20,7 +23,7 @@ def reset_service():
     from web_dashboard.monitoring_service import get_service
     svc = get_service()
     svc.stop()
-    # Hard-reset state
+    svc.update_settings({})
     svc.running = False
     svc.frames_processed = 0
     svc.last_detection_label = None
@@ -29,6 +32,7 @@ def reset_service():
     svc.confirmed_failure = False
     svc.fail_frame_count = 0
     svc.last_error = None
+    svc.last_action_result = None
     svc._latest_frame_jpeg = None
     yield
     svc.stop()
@@ -44,6 +48,72 @@ def test_ai_status_default_stopped():
     data = response.json()
     assert data["running"] is False
     assert data["frames_processed"] == 0
+    assert data["auto_action_enabled"] is False
+    assert data["action_mode"] == "detection_only"
+
+
+def test_ai_settings_default_safe():
+    response = client.get("/api/ai/settings")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["settings"] == {
+        "confidence_threshold": DEFAULT_DASHBOARD_AI_SETTINGS.confidence_threshold,
+        "consecutive_fail_frames": DEFAULT_DASHBOARD_AI_SETTINGS.consecutive_fail_frames,
+        "alert_cooldown_seconds": DEFAULT_DASHBOARD_AI_SETTINGS.alert_cooldown_seconds,
+        "auto_action_enabled": False,
+        "action_mode": "detection_only",
+    }
+    assert data["effective"]["auto_action_active"] is False
+    assert "disabled" in data["effective"]["auto_action_reason"].lower()
+
+
+def test_ai_settings_invalid_threshold_rejected():
+    response = client.post(
+        "/api/ai/settings",
+        json={"confidence_threshold": 1.5},
+    )
+    assert response.status_code == 400
+    assert "Confidence threshold must be between 0 and 1." in response.json()["detail"]["errors"]
+
+
+def test_ai_settings_invalid_action_mode_rejected():
+    response = client.post(
+        "/api/ai/settings",
+        json={"action_mode": "resume"},
+    )
+    assert response.status_code == 400
+    assert "Action mode must be detection_only, pause, or stop." in response.json()["detail"]["errors"]
+
+
+def test_ai_settings_update_affects_monitoring_service():
+    from web_dashboard.monitoring_service import get_service
+
+    response = client.post(
+        "/api/ai/settings",
+        json={
+            "confidence_threshold": 0.72,
+            "consecutive_fail_frames": 5,
+            "alert_cooldown_seconds": 12,
+            "auto_action_enabled": True,
+            "action_mode": "pause",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["settings"]["confidence_threshold"] == pytest.approx(0.72)
+    assert data["settings"]["consecutive_fail_frames"] == 5
+    assert data["settings"]["alert_cooldown_seconds"] == 12
+    assert data["settings"]["auto_action_enabled"] is True
+    assert data["settings"]["action_mode"] == "pause"
+
+    service = get_service()
+    status = service.get_status()
+    assert status["confidence_threshold"] == pytest.approx(0.72)
+    assert status["consecutive_fail_frames"] == 5
+    assert status["alert_cooldown_seconds"] == 12
+    assert status["auto_action_enabled"] is True
+    assert status["action_mode"] == "pause"
 
 
 # ---------------------------------------------------------------------------
@@ -142,6 +212,10 @@ def test_service_get_status_structure():
         "last_detection_label", "last_detection_confidence",
         "failure_detected", "confirmed_failure", "fail_frame_count",
         "consecutive_fail_frames", "last_error", "last_action_result",
+        "confidence_threshold", "alert_cooldown_seconds",
+        "auto_action_enabled", "action_mode", "cooldown_remaining_seconds",
+        "printer_backend", "real_printer_command",
+        "auto_action_active", "auto_action_reason",
     }
     assert expected_keys == set(status.keys())
 
@@ -159,6 +233,22 @@ def test_service_start_rejects_double_start():
     err = svc.start(camera_url="http://test/stream")
     assert "already running" in err.lower()
     svc.running = False
+
+
+def test_validate_ai_settings_reports_errors():
+    errors = validate_ai_settings(
+        {
+            "confidence_threshold": "nope",
+            "consecutive_fail_frames": 0,
+            "alert_cooldown_seconds": -1,
+            "action_mode": "resume",
+        }
+    )
+
+    assert "Confidence threshold must be between 0 and 1." in errors
+    assert "Consecutive fail frames must be at least 1." in errors
+    assert "Alert cooldown seconds must be 0 or greater." in errors
+    assert "Action mode must be detection_only, pause, or stop." in errors
 
 
 def test_service_handles_detector_exception_safely():
@@ -224,6 +314,92 @@ def test_service_stores_detection_result():
     assert svc.last_detection_label == "spaghetti"
     assert svc.last_detection_confidence == pytest.approx(0.82)
     assert svc.frames_processed >= 1
+
+
+def test_service_updates_running_detector_threshold():
+    svc = DashboardMonitoringService()
+    active_detector = MagicMock()
+    active_detector._confidence_threshold = 0.35
+    svc._detector = active_detector
+
+    svc.update_settings({"confidence_threshold": 0.7})
+
+    assert active_detector._confidence_threshold == pytest.approx(0.7)
+    assert svc.get_status()["confidence_threshold"] == pytest.approx(0.7)
+
+
+def test_auto_action_disabled_prevents_action_trigger():
+    svc = DashboardMonitoringService()
+    svc.update_settings(
+        {
+            "auto_action_enabled": False,
+            "action_mode": "pause",
+            "consecutive_fail_frames": 1,
+        }
+    )
+
+    fake_frame = MagicMock()
+    fake_cap = MagicMock()
+    fake_cap.read.return_value = (True, fake_frame)
+    fake_cap.release = MagicMock()
+
+    from detector import FrameDetection
+
+    fake_detector = MagicMock()
+    fake_detector.detect.return_value = FrameDetection(
+        annotated_frame=fake_frame,
+        failure_detected=True,
+        label="spaghetti",
+        confidence=0.91,
+    )
+
+    with (
+        patch("web_dashboard.monitoring_service.DashboardMonitoringService._setup", return_value=(fake_cap, fake_detector)),
+        patch("cv2.imencode", return_value=(True, MagicMock(tobytes=lambda: b"jpeg"))),
+        patch("web_dashboard.monitoring_service.trigger_printer_response") as mock_trigger,
+    ):
+        svc.start(camera_url="http://test/stream")
+        time.sleep(0.3)
+        svc.stop()
+
+    mock_trigger.assert_not_called()
+
+
+def test_detection_only_mode_prevents_action_trigger():
+    svc = DashboardMonitoringService()
+    svc.update_settings(
+        {
+            "auto_action_enabled": True,
+            "action_mode": "detection_only",
+            "consecutive_fail_frames": 1,
+        }
+    )
+
+    fake_frame = MagicMock()
+    fake_cap = MagicMock()
+    fake_cap.read.return_value = (True, fake_frame)
+    fake_cap.release = MagicMock()
+
+    from detector import FrameDetection
+
+    fake_detector = MagicMock()
+    fake_detector.detect.return_value = FrameDetection(
+        annotated_frame=fake_frame,
+        failure_detected=True,
+        label="spaghetti",
+        confidence=0.91,
+    )
+
+    with (
+        patch("web_dashboard.monitoring_service.DashboardMonitoringService._setup", return_value=(fake_cap, fake_detector)),
+        patch("cv2.imencode", return_value=(True, MagicMock(tobytes=lambda: b"jpeg"))),
+        patch("web_dashboard.monitoring_service.trigger_printer_response") as mock_trigger,
+    ):
+        svc.start(camera_url="http://test/stream")
+        time.sleep(0.3)
+        svc.stop()
+
+    mock_trigger.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
