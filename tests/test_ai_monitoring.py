@@ -1,5 +1,6 @@
 """Tests for dashboard AI monitoring endpoints and service."""
 
+import csv
 import time
 from datetime import datetime
 from pathlib import Path
@@ -909,6 +910,87 @@ def test_dashboard_screenshot_save_falls_back_to_raw_when_annotated_save_fails(
     assert len(captured_frames) == 2
     assert captured_frames[0] is annotated
     assert captured_frames[1] is raw
+
+
+def test_dashboard_confirmed_failure_logs_and_dispatches_saved_screenshot(
+    monkeypatch,
+    tmp_path: Path,
+):
+    annotated = np.full((8, 8, 3), 255, dtype=np.uint8)
+    raw = np.zeros((8, 8, 3), dtype=np.uint8)
+    captures_dir = tmp_path / "captures"
+    events_csv_path = tmp_path / "logs" / "events.csv"
+    dispatched_events: list[FailureEvent] = []
+
+    from actions import handle_confirmed_failure as real_handle_confirmed_failure
+    from actions import save_failure_screenshot as real_save_failure_screenshot
+    from printer_controller import PrinterCommandResult
+
+    def fake_save_failure_screenshot(frame, timestamp, label):
+        return real_save_failure_screenshot(
+            frame,
+            timestamp,
+            label,
+            captures_dir=captures_dir,
+        )
+
+    def fake_handle_confirmed_failure(
+        frame,
+        source,
+        label,
+        confidence,
+        timestamp,
+        printer_action,
+        screenshot_path,
+        save_screenshot_if_missing,
+    ):
+        return real_handle_confirmed_failure(
+            frame=frame,
+            source=source,
+            label=label,
+            confidence=confidence,
+            timestamp=timestamp,
+            printer_action=printer_action,
+            events_csv_path=events_csv_path,
+            screenshot_path=screenshot_path,
+            save_screenshot_if_missing=save_screenshot_if_missing,
+        )
+
+    monkeypatch.setattr(
+        "web_dashboard.monitoring_service.save_failure_screenshot",
+        fake_save_failure_screenshot,
+    )
+    monkeypatch.setattr(
+        "web_dashboard.monitoring_service.handle_confirmed_failure",
+        fake_handle_confirmed_failure,
+    )
+    monkeypatch.setattr("actions.alert_failure", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        "actions.trigger_printer_response",
+        lambda action: PrinterCommandResult(action=action, success=True, message="ok"),
+    )
+    monkeypatch.setattr(
+        "actions.dispatch_failure_notifications",
+        lambda event: dispatched_events.append(event),
+    )
+
+    event = handle_dashboard_confirmed_failure(
+        action_mode="pause",
+        annotated_frame=annotated,
+        raw_frame=raw,
+        source_name="dashboard demo_video: Sample video",
+        label="spaghetti",
+        confidence=0.91,
+    )
+
+    assert event.screenshot_path is not None
+    assert event.screenshot_path.exists()
+    assert event.screenshot_path.parent == captures_dir
+    assert dispatched_events[0].screenshot_path == event.screenshot_path
+
+    with events_csv_path.open(newline="", encoding="utf-8") as csv_file:
+        rows = list(csv.DictReader(csv_file))
+    assert rows[0]["screenshot_path"] == event.screenshot_path.as_posix()
 
 
 def test_auto_action_disabled_prevents_action_trigger():
