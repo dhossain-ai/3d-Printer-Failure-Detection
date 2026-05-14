@@ -163,6 +163,23 @@ def test_recent_events_newest_first(tmp_path):
         assert events[2]["timestamp"] == "1"
 
 
+def test_recent_events_preserves_screenshot_path(tmp_path):
+    events_file = tmp_path / "events.csv"
+    events_file.write_text(
+        (
+            "timestamp,source,label,confidence,action,screenshot_path\n"
+            "1,Dashboard,spaghetti,0.9100,pause,captures/failure_test.jpg\n"
+        ),
+        encoding="utf-8",
+    )
+
+    with patch("web_dashboard.app.config.EVENTS_CSV_PATH", events_file):
+        response = client.get("/api/events/recent")
+        assert response.status_code == 200
+        event = response.json()["events"][0]
+        assert event["screenshot_path"] == "captures/failure_test.jpg"
+
+
 def test_recent_events_malformed_csv(tmp_path):
     events_file = tmp_path / "events.csv"
     events_file.write_text("timestamp,label\n1,A\nmalformed\n3,C", encoding="utf-8")
