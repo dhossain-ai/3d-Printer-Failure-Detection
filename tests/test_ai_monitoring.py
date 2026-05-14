@@ -1,6 +1,7 @@
 """Tests for dashboard AI monitoring endpoints and service."""
 
 import time
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -17,6 +18,7 @@ from web_dashboard.monitoring_service import (
     DashboardMonitoringService,
     DashboardSourceSettings,
     handle_dashboard_confirmed_failure,
+    save_dashboard_failure_screenshot,
     select_dashboard_failure_frame,
     get_default_dashboard_source_settings,
     validate_source_settings,
@@ -759,8 +761,18 @@ def test_dashboard_confirmed_failure_prefers_annotated_frame(monkeypatch):
     raw = np.zeros((4, 4, 3), dtype=np.uint8)
     captured: dict[str, object] = {}
 
-    def fake_handle(frame, source, label, confidence, printer_action):
+    def fake_handle(
+        frame,
+        source,
+        label,
+        confidence,
+        timestamp,
+        printer_action,
+        screenshot_path,
+        save_screenshot_if_missing,
+    ):
         captured["frame"] = frame
+        captured["screenshot_path"] = screenshot_path
         return FailureEvent(
             timestamp="2026-04-29T12:30:01+03:00",
             source=source,
@@ -775,6 +787,10 @@ def test_dashboard_confirmed_failure_prefers_annotated_frame(monkeypatch):
     monkeypatch.setattr(
         "web_dashboard.monitoring_service.handle_confirmed_failure",
         fake_handle,
+    )
+    monkeypatch.setattr(
+        "web_dashboard.monitoring_service.save_dashboard_failure_screenshot",
+        lambda **kwargs: Path("captures/failure.jpg"),
     )
 
     handle_dashboard_confirmed_failure(
@@ -787,13 +803,23 @@ def test_dashboard_confirmed_failure_prefers_annotated_frame(monkeypatch):
     )
 
     assert captured["frame"] is annotated
+    assert captured["screenshot_path"] == Path("captures/failure.jpg")
 
 
 def test_dashboard_confirmed_failure_falls_back_to_raw_frame(monkeypatch):
     raw = np.zeros((4, 4, 3), dtype=np.uint8)
     captured: dict[str, object] = {}
 
-    def fake_handle(frame, source, label, confidence, printer_action):
+    def fake_handle(
+        frame,
+        source,
+        label,
+        confidence,
+        timestamp,
+        printer_action,
+        screenshot_path,
+        save_screenshot_if_missing,
+    ):
         captured["frame"] = frame
         return FailureEvent(
             timestamp="2026-04-29T12:30:01+03:00",
@@ -809,6 +835,10 @@ def test_dashboard_confirmed_failure_falls_back_to_raw_frame(monkeypatch):
     monkeypatch.setattr(
         "web_dashboard.monitoring_service.handle_confirmed_failure",
         fake_handle,
+    )
+    monkeypatch.setattr(
+        "web_dashboard.monitoring_service.save_dashboard_failure_screenshot",
+        lambda **kwargs: Path("captures/failure.jpg"),
     )
 
     handle_dashboard_confirmed_failure(
@@ -822,6 +852,63 @@ def test_dashboard_confirmed_failure_falls_back_to_raw_frame(monkeypatch):
 
     assert captured["frame"] is raw
     assert select_dashboard_failure_frame(None, raw) is raw
+
+
+def test_dashboard_screenshot_save_uses_annotated_frame(monkeypatch):
+    annotated = np.full((4, 4, 3), 255, dtype=np.uint8)
+    raw = np.zeros((4, 4, 3), dtype=np.uint8)
+    captured_frames: list[object] = []
+
+    def fake_save(frame, timestamp, label):
+        captured_frames.append(frame)
+        return Path("captures/annotated.jpg")
+
+    monkeypatch.setattr(
+        "web_dashboard.monitoring_service.save_failure_screenshot",
+        fake_save,
+    )
+
+    path = save_dashboard_failure_screenshot(
+        annotated_frame=annotated,
+        raw_frame=raw,
+        timestamp=datetime.now(),
+        label="spaghetti",
+    )
+
+    assert path == Path("captures/annotated.jpg")
+    assert len(captured_frames) == 1
+    assert captured_frames[0] is annotated
+
+
+def test_dashboard_screenshot_save_falls_back_to_raw_when_annotated_save_fails(
+    monkeypatch,
+):
+    annotated = np.full((4, 4, 3), 255, dtype=np.uint8)
+    raw = np.zeros((4, 4, 3), dtype=np.uint8)
+    captured_frames: list[object] = []
+
+    def fake_save(frame, timestamp, label):
+        captured_frames.append(frame)
+        if frame is annotated:
+            raise RuntimeError("bad annotated frame")
+        return Path("captures/raw.jpg")
+
+    monkeypatch.setattr(
+        "web_dashboard.monitoring_service.save_failure_screenshot",
+        fake_save,
+    )
+
+    path = save_dashboard_failure_screenshot(
+        annotated_frame=annotated,
+        raw_frame=raw,
+        timestamp=datetime.now(),
+        label="spaghetti",
+    )
+
+    assert path == Path("captures/raw.jpg")
+    assert len(captured_frames) == 2
+    assert captured_frames[0] is annotated
+    assert captured_frames[1] is raw
 
 
 def test_auto_action_disabled_prevents_action_trigger():
@@ -926,7 +1013,16 @@ def test_dashboard_confirmed_failure_cooldown_prevents_repeated_notifications():
     )
     handled_events: list[FailureEvent] = []
 
-    def fake_handle(frame, source, label, confidence, printer_action):
+    def fake_handle(
+        frame,
+        source,
+        label,
+        confidence,
+        timestamp,
+        printer_action,
+        screenshot_path,
+        save_screenshot_if_missing,
+    ):
         event = FailureEvent(
             timestamp="2026-04-29T12:30:01+03:00",
             source=source,

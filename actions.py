@@ -153,28 +153,30 @@ def handle_confirmed_failure(
     printer_action: str = PRINTER_ACTION,
     captures_dir: Path = CAPTURES_DIR,
     events_csv_path: Path = EVENTS_CSV_PATH,
+    screenshot_path: Path | None = None,
+    save_screenshot_if_missing: bool = True,
 ) -> FailureEvent:
     """Run all configured responses for a confirmed failure."""
 
     ensure_action_paths()
     event_time = timestamp or now_local()
     action = normalize_printer_action(printer_action)
-    screenshot_path: Path | None = None
-    try:
-        screenshot_path = save_failure_screenshot(
-            frame,
-            event_time,
-            label,
-            captures_dir=captures_dir,
-        )
-    except Exception as exc:  # noqa: BLE001 - printer response must still run.
-        print(
-            (
-                "PRINTSENTINEL WARNING: failure screenshot could not be saved: "
-                f"{exc.__class__.__name__}"
-            ),
-            file=sys.stderr,
-        )
+    if screenshot_path is None and save_screenshot_if_missing:
+        try:
+            screenshot_path = save_failure_screenshot(
+                frame,
+                event_time,
+                label,
+                captures_dir=captures_dir,
+            )
+        except Exception as exc:  # noqa: BLE001 - printer response must still run.
+            print(
+                (
+                    "PRINTSENTINEL WARNING: failure screenshot could not be saved: "
+                    f"{exc.__class__.__name__}"
+                ),
+                file=sys.stderr,
+            )
 
     event = FailureEvent(
         timestamp=event_time.isoformat(timespec="seconds"),

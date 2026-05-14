@@ -12,14 +12,20 @@ import threading
 import time
 import json
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from time import monotonic
 from typing import Any
 
 import config
-from actions import FailureEvent, handle_confirmed_failure, trigger_printer_response
+from actions import (
+    FailureEvent,
+    handle_confirmed_failure,
+    save_failure_screenshot,
+    trigger_printer_response,
+)
 from dataset_capture import DatasetFrameSnapshot
-from utils import AlertCooldown
+from utils import AlertCooldown, now_local
 
 logger = logging.getLogger(__name__)
 
@@ -945,13 +951,56 @@ def handle_dashboard_confirmed_failure(
 ) -> FailureEvent:
     """Handle dashboard confirmed-failure logging, action, and notifications."""
 
+    event_time = now_local()
+    screenshot_path = save_dashboard_failure_screenshot(
+        annotated_frame=annotated_frame,
+        raw_frame=raw_frame,
+        timestamp=event_time,
+        label=label,
+    )
+    frame = select_dashboard_failure_frame(annotated_frame, raw_frame)
     return handle_confirmed_failure(
-        frame=select_dashboard_failure_frame(annotated_frame, raw_frame),
+        frame=frame,
         source=source_name,
         label=label,
         confidence=confidence,
+        timestamp=event_time,
         printer_action=action_mode,
+        screenshot_path=screenshot_path,
+        save_screenshot_if_missing=False,
     )
+
+
+def save_dashboard_failure_screenshot(
+    annotated_frame: Any | None,
+    raw_frame: Any | None,
+    timestamp: datetime,
+    label: str,
+) -> Path | None:
+    """Save a dashboard failure screenshot without interrupting monitoring."""
+
+    frame_attempts = [
+        ("annotated", annotated_frame),
+        ("raw", raw_frame),
+    ]
+    attempted_frame = False
+
+    for frame_name, frame in frame_attempts:
+        if frame is None:
+            continue
+        attempted_frame = True
+        try:
+            return save_failure_screenshot(frame, timestamp, label)
+        except Exception as exc:  # noqa: BLE001 - action and notification must continue.
+            logger.warning(
+                "Dashboard %s failure screenshot could not be saved: %s",
+                frame_name,
+                exc.__class__.__name__,
+            )
+
+    if not attempted_frame:
+        logger.warning("Dashboard failure screenshot skipped: no frame is available.")
+    return None
 
 
 def format_dashboard_event_source(source_type: str, source_name: str) -> str:
