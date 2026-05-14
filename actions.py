@@ -49,7 +49,7 @@ class FailureEvent:
     label: str
     confidence: float
     action: str
-    screenshot_path: Path
+    screenshot_path: Path | None
     action_success: bool | None = None
     action_message: str | None = None
 
@@ -104,7 +104,11 @@ def build_event_row(event: FailureEvent) -> dict[str, str]:
         "label": event.label,
         "confidence": f"{event.confidence:.4f}",
         "action": event.action,
-        "screenshot_path": event.screenshot_path.as_posix(),
+        "screenshot_path": (
+            event.screenshot_path.as_posix()
+            if event.screenshot_path is not None
+            else ""
+        ),
     }
 
 
@@ -147,13 +151,30 @@ def handle_confirmed_failure(
     confidence: float,
     timestamp: datetime | None = None,
     printer_action: str = PRINTER_ACTION,
+    captures_dir: Path = CAPTURES_DIR,
+    events_csv_path: Path = EVENTS_CSV_PATH,
 ) -> FailureEvent:
     """Run all configured responses for a confirmed failure."""
 
     ensure_action_paths()
     event_time = timestamp or now_local()
     action = normalize_printer_action(printer_action)
-    screenshot_path = save_failure_screenshot(frame, event_time, label)
+    screenshot_path: Path | None = None
+    try:
+        screenshot_path = save_failure_screenshot(
+            frame,
+            event_time,
+            label,
+            captures_dir=captures_dir,
+        )
+    except Exception as exc:  # noqa: BLE001 - printer response must still run.
+        print(
+            (
+                "PRINTSENTINEL WARNING: failure screenshot could not be saved: "
+                f"{exc.__class__.__name__}"
+            ),
+            file=sys.stderr,
+        )
 
     event = FailureEvent(
         timestamp=event_time.isoformat(timespec="seconds"),
@@ -163,7 +184,7 @@ def handle_confirmed_failure(
         action=action,
         screenshot_path=screenshot_path,
     )
-    append_event_log(event)
+    append_event_log(event, csv_path=events_csv_path)
     alert_failure(source, label, confidence)
     action_result = trigger_printer_response(action)
     try:

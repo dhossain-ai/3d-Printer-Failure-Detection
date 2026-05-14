@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Sequence
 
 from notifications.models import FailureNotification, NotificationResult
-from notifications.screenshots import screenshot_within_limit
+from notifications.screenshots import screenshot_unavailable_reason, screenshot_within_limit
 
 
 class EmailProvider:
@@ -54,6 +54,9 @@ class EmailProvider:
             return config_error
 
         try:
+            fallback_reason = self._screenshot_fallback_reason(
+                notification.screenshot_path
+            )
             message = self._build_message(notification)
             self._send_message(message)
         except smtplib.SMTPAuthenticationError:
@@ -71,7 +74,12 @@ class EmailProvider:
             provider=self.provider_name,
             destination_id=self.destination_id,
             success=True,
-            message="Email notification sent.",
+            message=(
+                "Email notification sent without screenshot "
+                f"({fallback_reason})."
+                if fallback_reason
+                else "Email notification sent."
+            ),
         )
 
     def _validate_config(self) -> NotificationResult | None:
@@ -151,6 +159,13 @@ class EmailProvider:
             self._send_screenshot
             and screenshot_within_limit(screenshot_path, self._max_screenshot_mb)
         )
+
+    def _screenshot_fallback_reason(self, screenshot_path: Path | None) -> str | None:
+        """Return a text-only fallback reason when screenshot sending was requested."""
+
+        if not self._send_screenshot:
+            return None
+        return screenshot_unavailable_reason(screenshot_path, self._max_screenshot_mb)
 
     def _attach_screenshot(
         self,

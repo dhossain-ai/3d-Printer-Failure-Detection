@@ -10,11 +10,14 @@ from fastapi.testclient import TestClient
 import config
 import numpy as np
 from dataset_capture import DatasetFrameSnapshot
+from actions import FailureEvent
 from web_dashboard.app import app
 from web_dashboard.monitoring_service import (
     DEFAULT_DASHBOARD_AI_SETTINGS,
     DashboardMonitoringService,
     DashboardSourceSettings,
+    handle_dashboard_confirmed_failure,
+    select_dashboard_failure_frame,
     get_default_dashboard_source_settings,
     validate_source_settings,
     validate_ai_settings,
@@ -751,6 +754,76 @@ def test_service_updates_running_detector_threshold():
     assert svc.get_status()["confidence_threshold"] == pytest.approx(0.7)
 
 
+def test_dashboard_confirmed_failure_prefers_annotated_frame(monkeypatch):
+    annotated = np.full((4, 4, 3), 255, dtype=np.uint8)
+    raw = np.zeros((4, 4, 3), dtype=np.uint8)
+    captured: dict[str, object] = {}
+
+    def fake_handle(frame, source, label, confidence, printer_action):
+        captured["frame"] = frame
+        return FailureEvent(
+            timestamp="2026-04-29T12:30:01+03:00",
+            source=source,
+            label=label,
+            confidence=confidence,
+            action=printer_action,
+            screenshot_path=Path("captures/failure.jpg"),
+            action_success=True,
+            action_message="ok",
+        )
+
+    monkeypatch.setattr(
+        "web_dashboard.monitoring_service.handle_confirmed_failure",
+        fake_handle,
+    )
+
+    handle_dashboard_confirmed_failure(
+        action_mode="pause",
+        annotated_frame=annotated,
+        raw_frame=raw,
+        source_name="Sample video",
+        label="spaghetti",
+        confidence=0.91,
+    )
+
+    assert captured["frame"] is annotated
+
+
+def test_dashboard_confirmed_failure_falls_back_to_raw_frame(monkeypatch):
+    raw = np.zeros((4, 4, 3), dtype=np.uint8)
+    captured: dict[str, object] = {}
+
+    def fake_handle(frame, source, label, confidence, printer_action):
+        captured["frame"] = frame
+        return FailureEvent(
+            timestamp="2026-04-29T12:30:01+03:00",
+            source=source,
+            label=label,
+            confidence=confidence,
+            action=printer_action,
+            screenshot_path=Path("captures/failure.jpg"),
+            action_success=True,
+            action_message="ok",
+        )
+
+    monkeypatch.setattr(
+        "web_dashboard.monitoring_service.handle_confirmed_failure",
+        fake_handle,
+    )
+
+    handle_dashboard_confirmed_failure(
+        action_mode="pause",
+        annotated_frame=None,
+        raw_frame=raw,
+        source_name="Sample video",
+        label="spaghetti",
+        confidence=0.91,
+    )
+
+    assert captured["frame"] is raw
+    assert select_dashboard_failure_frame(None, raw) is raw
+
+
 def test_auto_action_disabled_prevents_action_trigger():
     svc = DashboardMonitoringService()
     svc.update_settings(
@@ -823,6 +896,59 @@ def test_detection_only_mode_prevents_action_trigger():
         svc.stop()
 
     mock_trigger.assert_not_called()
+
+
+def test_dashboard_confirmed_failure_cooldown_prevents_repeated_notifications():
+    svc = DashboardMonitoringService()
+    svc.update_settings(
+        {
+            "auto_action_enabled": True,
+            "action_mode": "pause",
+            "consecutive_fail_frames": 1,
+            "alert_cooldown_seconds": 999,
+        }
+    )
+
+    raw_frame = np.zeros((8, 8, 3), dtype=np.uint8)
+    annotated_frame = np.full((8, 8, 3), 255, dtype=np.uint8)
+    fake_cap = MagicMock()
+    fake_cap.read.return_value = (True, raw_frame)
+    fake_cap.release = MagicMock()
+
+    from detector import FrameDetection
+
+    fake_detector = MagicMock()
+    fake_detector.detect.return_value = FrameDetection(
+        annotated_frame=annotated_frame,
+        failure_detected=True,
+        label="spaghetti",
+        confidence=0.91,
+    )
+    handled_events: list[FailureEvent] = []
+
+    def fake_handle(frame, source, label, confidence, printer_action):
+        event = FailureEvent(
+            timestamp="2026-04-29T12:30:01+03:00",
+            source=source,
+            label=label,
+            confidence=confidence,
+            action=printer_action,
+            screenshot_path=Path("captures/failure.jpg"),
+            action_success=True,
+            action_message="ok",
+        )
+        handled_events.append(event)
+        return event
+
+    with (
+        patch("web_dashboard.monitoring_service.DashboardMonitoringService._setup", return_value=(fake_cap, fake_detector)),
+        patch("web_dashboard.monitoring_service.handle_confirmed_failure", side_effect=fake_handle),
+    ):
+        svc.start(camera_url="http://test/stream")
+        time.sleep(0.3)
+        svc.stop()
+
+    assert len(handled_events) == 1
 
 
 # ---------------------------------------------------------------------------

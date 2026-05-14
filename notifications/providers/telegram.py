@@ -6,7 +6,7 @@ from typing import Any
 import requests
 
 from notifications.models import FailureNotification, NotificationResult
-from notifications.screenshots import screenshot_within_limit
+from notifications.screenshots import screenshot_unavailable_reason, screenshot_within_limit
 
 TELEGRAM_API_BASE_URL = "https://api.telegram.org"
 
@@ -49,7 +49,12 @@ class TelegramProvider:
             if self._should_send_photo(notification.screenshot_path):
                 return self._send_photo(notification)
 
-            return self._send_message(notification)
+            return self._send_message(
+                notification,
+                fallback_reason=self._screenshot_fallback_reason(
+                    notification.screenshot_path
+                ),
+            )
         except requests.Timeout as exc:
             return self._failure_result(
                 f"Telegram request timed out: {exc.__class__.__name__}"
@@ -77,7 +82,11 @@ class TelegramProvider:
 
         return None
 
-    def _send_message(self, notification: FailureNotification) -> NotificationResult:
+    def _send_message(
+        self,
+        notification: FailureNotification,
+        fallback_reason: str | None = None,
+    ) -> NotificationResult:
         """Send a text-only Telegram alert."""
 
         response = self._session.post(
@@ -94,7 +103,12 @@ class TelegramProvider:
             provider=self.provider_name,
             destination_id=self.destination_id,
             success=True,
-            message="Telegram message sent.",
+            message=(
+                "Telegram message sent without screenshot "
+                f"({fallback_reason})."
+                if fallback_reason
+                else "Telegram message sent."
+            ),
         )
 
     def _send_photo(self, notification: FailureNotification) -> NotificationResult:
@@ -127,6 +141,13 @@ class TelegramProvider:
             self._send_screenshot
             and screenshot_within_limit(screenshot_path, self._max_screenshot_mb)
         )
+
+    def _screenshot_fallback_reason(self, screenshot_path: Path | None) -> str | None:
+        """Return a text-only fallback reason when screenshot sending was requested."""
+
+        if not self._send_screenshot:
+            return None
+        return screenshot_unavailable_reason(screenshot_path, self._max_screenshot_mb)
 
     def _api_url(self, method: str) -> str:
         """Build a Telegram Bot API method URL."""

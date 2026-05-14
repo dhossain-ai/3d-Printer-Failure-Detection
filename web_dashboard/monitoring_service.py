@@ -17,7 +17,7 @@ from time import monotonic
 from typing import Any
 
 import config
-from actions import trigger_printer_response
+from actions import FailureEvent, handle_confirmed_failure, trigger_printer_response
 from dataset_capture import DatasetFrameSnapshot
 from utils import AlertCooldown
 
@@ -747,7 +747,13 @@ class DashboardMonitoringService:
                         self._alert_cooldown.mark_triggered(now_seconds)
 
                 if should_trigger_auto_action:
-                    action_result = self._trigger_auto_action(current_settings.action_mode)
+                    action_result = self._trigger_confirmed_failure_response(
+                        action_mode=current_settings.action_mode,
+                        annotated_frame=annotated_frame,
+                        raw_frame=raw_frame,
+                        label=detection.label,
+                        confidence=detection.confidence,
+                    )
                     with self._lock:
                         self.last_action_result = action_result
 
@@ -781,8 +787,15 @@ class DashboardMonitoringService:
             and self._alert_cooldown.is_ready(now_seconds)
         )
 
-    def _trigger_auto_action(self, action_mode: str) -> str:
-        """Run a guarded auto action or return a safe skip message."""
+    def _trigger_confirmed_failure_response(
+        self,
+        action_mode: str,
+        annotated_frame: Any | None,
+        raw_frame: Any | None,
+        label: str | None,
+        confidence: float,
+    ) -> str:
+        """Run confirmed-failure side effects for dashboard monitoring."""
 
         effective = self._build_effective_settings_payload(
             settings=self._settings,
@@ -792,9 +805,19 @@ class DashboardMonitoringService:
         if not effective["auto_action_active"]:
             return f"Auto action skipped: {effective['auto_action_reason']}"
 
-        result = trigger_printer_response(action_mode)
-        outcome = "success" if result.success else "failed"
-        return f"Auto action {result.action}: {outcome} - {result.message}"
+        with self._lock:
+            source_type = self._source_settings.source_type
+            source_name = self.source_name or "Dashboard AI"
+
+        event = handle_dashboard_confirmed_failure(
+            action_mode=action_mode,
+            annotated_frame=annotated_frame,
+            raw_frame=raw_frame,
+            source_name=format_dashboard_event_source(source_type, source_name),
+            label=label or "failure",
+            confidence=confidence,
+        )
+        return _format_dashboard_action_result(event)
 
     def _build_effective_settings_payload(
         self,
@@ -901,6 +924,49 @@ def _copy_frame(frame: Any | None) -> Any | None:
     if hasattr(frame, "copy"):
         return frame.copy()
     return frame
+
+
+def select_dashboard_failure_frame(
+    annotated_frame: Any | None,
+    raw_frame: Any | None,
+) -> Any | None:
+    """Return the preferred dashboard failure screenshot frame."""
+
+    return annotated_frame if annotated_frame is not None else raw_frame
+
+
+def handle_dashboard_confirmed_failure(
+    action_mode: str,
+    annotated_frame: Any | None,
+    raw_frame: Any | None,
+    source_name: str,
+    label: str,
+    confidence: float,
+) -> FailureEvent:
+    """Handle dashboard confirmed-failure logging, action, and notifications."""
+
+    return handle_confirmed_failure(
+        frame=select_dashboard_failure_frame(annotated_frame, raw_frame),
+        source=source_name,
+        label=label,
+        confidence=confidence,
+        printer_action=action_mode,
+    )
+
+
+def format_dashboard_event_source(source_type: str, source_name: str) -> str:
+    """Return a source label for dashboard-triggered failure events."""
+
+    return f"dashboard {source_type}: {source_name}"
+
+
+def _format_dashboard_action_result(event: FailureEvent) -> str:
+    """Return the dashboard status text for a confirmed-failure response."""
+
+    if event.action_success is None:
+        return f"Auto action {event.action}: completed"
+    outcome = "success" if event.action_success else "failed"
+    return f"Auto action {event.action}: {outcome} - {event.action_message or ''}"
 
 
 def _frame_roi_bounds(

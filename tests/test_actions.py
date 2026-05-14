@@ -1,6 +1,9 @@
 """Tests for confirmed failure action helpers."""
 
+import csv
 from pathlib import Path
+
+import numpy as np
 
 from actions import (
     FailureEvent,
@@ -8,6 +11,8 @@ from actions import (
     build_event_row,
     dispatch_failure_notifications,
     get_simulated_action_name,
+    handle_confirmed_failure,
+    send_failure_notifications,
     trigger_printer_response,
 )
 from printer_controller import PrinterCommandResult
@@ -86,6 +91,82 @@ def test_append_event_log_writes_header_and_row(tmp_path: Path) -> None:
     assert "Webcam 0,zits,0.8000,pause" in content
 
 
+def test_handle_confirmed_failure_saves_screenshot_and_logs_path(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """Confirmed failures should save a screenshot and log its path."""
+
+    frame = np.zeros((8, 8, 3), dtype=np.uint8)
+    captures_dir = tmp_path / "captures"
+    csv_path = tmp_path / "logs" / "events.csv"
+
+    monkeypatch.setattr("actions.alert_failure", lambda *args, **kwargs: None)
+    monkeypatch.setattr("actions.dispatch_failure_notifications", lambda event: None)
+    monkeypatch.setattr(
+        "actions.trigger_printer_response",
+        lambda action: PrinterCommandResult(action=action, success=True, message="ok"),
+    )
+
+    event = handle_confirmed_failure(
+        frame=frame,
+        source="Dashboard AI: demo_video",
+        label="spaghetti",
+        confidence=0.93,
+        printer_action="pause",
+        captures_dir=captures_dir,
+        events_csv_path=csv_path,
+    )
+
+    assert event.screenshot_path is not None
+    assert event.screenshot_path.exists()
+    assert event.screenshot_path.parent == captures_dir
+    with csv_path.open(newline="", encoding="utf-8") as csv_file:
+        rows = list(csv.DictReader(csv_file))
+    assert rows[0]["source"] == "Dashboard AI: demo_video"
+    assert rows[0]["screenshot_path"] == event.screenshot_path.as_posix()
+
+
+def test_handle_confirmed_failure_continues_when_screenshot_save_fails(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """Screenshot save failures should not block action or notification dispatch."""
+
+    calls: list[str] = []
+    dispatched_events: list[FailureEvent] = []
+
+    def fake_save(*args, **kwargs):
+        calls.append("screenshot")
+        raise OSError("disk full")
+
+    def fake_printer(action):
+        calls.append("printer")
+        return PrinterCommandResult(action=action, success=True, message="ok")
+
+    def fake_notify(event):
+        calls.append("notify")
+        dispatched_events.append(event)
+
+    monkeypatch.setattr("actions.save_failure_screenshot", fake_save)
+    monkeypatch.setattr("actions.alert_failure", lambda *args, **kwargs: None)
+    monkeypatch.setattr("actions.trigger_printer_response", fake_printer)
+    monkeypatch.setattr("actions.dispatch_failure_notifications", fake_notify)
+
+    event = handle_confirmed_failure(
+        frame=object(),
+        source="Dashboard AI",
+        label="spaghetti",
+        confidence=0.91,
+        printer_action="pause",
+        events_csv_path=tmp_path / "logs" / "events.csv",
+    )
+
+    assert calls == ["screenshot", "printer", "notify"]
+    assert event.screenshot_path is None
+    assert dispatched_events[0].screenshot_path is None
+
+
 def test_get_simulated_action_name_defaults_to_stop() -> None:
     """Unsupported simulated actions should safely resolve to stop."""
 
@@ -111,11 +192,11 @@ def test_handle_confirmed_failure_runs_all_response_steps(monkeypatch, tmp_path:
 
     calls: list[str] = []
 
-    def fake_save(frame, timestamp, label):
+    def fake_save(frame, timestamp, label, captures_dir=None):
         calls.append("screenshot")
         return tmp_path / "failure.jpg"
 
-    def fake_log(event):
+    def fake_log(event, csv_path=None):
         calls.append("csv")
 
     def fake_alert(source, label, confidence):
@@ -162,11 +243,11 @@ def test_handle_confirmed_failure_runs_printer_when_notification_fails(
 
     calls: list[str] = []
 
-    def fake_save(frame, timestamp, label):
+    def fake_save(frame, timestamp, label, captures_dir=None):
         calls.append("screenshot")
         return tmp_path / "failure.jpg"
 
-    def fake_log(event):
+    def fake_log(event, csv_path=None):
         calls.append("csv")
 
     def fake_alert(source, label, confidence):
@@ -231,3 +312,53 @@ def test_dispatch_failure_notifications_runs_in_background(
     dispatch_failure_notifications(event, dispatcher=FakeDispatcher())
 
     assert calls == ["dispatch"]
+
+
+def test_send_failure_notifications_passes_screenshot_path(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """Notification dispatch should pass the saved screenshot path to providers."""
+
+    screenshot_path = tmp_path / "failure.jpg"
+    captured_paths: list[Path | None] = []
+
+    class FakeNotificationManager:
+        """Notification manager stand-in that records the notification payload."""
+
+        def __init__(self, providers):
+            """Ignore configured providers."""
+
+        def send_failure_alert(self, notification):
+            """Record screenshot path and return success."""
+
+            captured_paths.append(notification.screenshot_path)
+            return [
+                type(
+                    "Result",
+                    (),
+                    {
+                        "provider": "fake",
+                        "destination_id": "test",
+                        "success": True,
+                        "message": "sent",
+                    },
+                )()
+            ]
+
+    monkeypatch.setattr("actions.NotificationManager", FakeNotificationManager)
+    monkeypatch.setattr("actions.build_enabled_providers", lambda: ["fake"])
+    monkeypatch.setattr("actions.safe_append_notification_results", lambda *args: None)
+
+    event = FailureEvent(
+        timestamp="2026-04-29T12:30:01+03:00",
+        source="Dashboard AI",
+        label="spaghetti",
+        confidence=0.9,
+        action="pause",
+        screenshot_path=screenshot_path,
+    )
+
+    send_failure_notifications(event)
+
+    assert captured_paths == [screenshot_path]

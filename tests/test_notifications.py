@@ -171,6 +171,8 @@ def test_provider_factory_includes_windows_provider_when_enabled() -> None:
         notifications_enabled=True,
         windows_notifications_enabled=True,
         windows_app_name="Test App",
+        telegram_notifications_enabled=False,
+        email_notifications_enabled=False,
     )
 
     assert len(providers) == 1
